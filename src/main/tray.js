@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray } from 'electron'
+import { app, BrowserWindow, Menu, shell, Tray } from 'electron'
 
 let tray = null
 
@@ -21,7 +21,7 @@ export function createTray (icon, showWindow) {
     { label: `Brain Thing v${ app.getVersion() }`, enabled: false },
     { type: 'separator' },
     { label: 'Show Window', click: () => tray.emit('click') },
-    { label: 'Check for Updates', click: () => checkForUpdate() },
+    { label: 'Check for Updates', click: () => shell.openExternal('https://github.com/vovchisko/brain-thing/releases') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ])
@@ -30,7 +30,3 @@ export function createTray (icon, showWindow) {
   return tray
 }
 
-function checkForUpdate () {
-  // TODO: fetch GitHub releases API, compare semver
-  console.log('[tray] Check for update — stub')
-}

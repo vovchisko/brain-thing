@@ -119,10 +119,12 @@ config.resourcesPath = app.isPackaged ? process.resourcesPath : null
 config.brainDir = join(app.getAppPath(), 'src', 'brain')
 
 app.on('second-instance', () => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.show()
     mainWindow.focus()
+  } else {
+    createWindow()
   }
 })
 

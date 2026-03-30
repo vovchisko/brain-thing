@@ -14,7 +14,7 @@ mkdirSync(out, { recursive: true })
 // 1. Bundle mcp-server.js + deps into single CJS file
 console.log('[mcp] Bundling with esbuild...')
 execSync(
-  `npx esbuild src/mcp/mcp-server.js --bundle --platform=node --format=esm --outfile=out/mcp-bundle.mjs`,
+  `npx esbuild src/mcp/mcp-server.js --bundle --platform=node --format=cjs --outfile=out/mcp-bundle.cjs`,
   { cwd: root, stdio: 'inherit' },
 )
 

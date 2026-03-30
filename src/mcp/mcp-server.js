@@ -58,6 +58,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 })
 
-await syncTools()
-const transport = new StdioServerTransport()
-await server.connect(transport)
+async function main () {
+  await syncTools()
+  console.error(`[brain-mcp] ready, ${ tools.length } tools`)
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+}
+
+main().catch(err => {
+  console.error(`[brain-mcp] fatal: ${ err.message }`)
+  process.exit(1)
+})
