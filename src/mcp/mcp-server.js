@@ -3,93 +3,61 @@
 import { Server }                                        from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport }                          from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { config }                                        from '../brain/config.js'
 
-import * as get        from '../brain/mcp/get.js'
-import * as whatIs     from '../brain/mcp/what_is.js'
-import * as grep       from '../brain/mcp/grep.js'
-import * as lookAround from '../brain/mcp/look_around.js'
-import * as tagsList   from '../brain/mcp/tags_list.js'
-import * as create     from '../brain/mcp/create.js'
-import * as update     from '../brain/mcp/update.js'
-import * as replace    from '../brain/mcp/replace.js'
-import * as insert     from '../brain/mcp/insert.js'
-import * as del        from '../brain/mcp/delete.js'
-import * as rename     from '../brain/mcp/rename.js'
-import * as fields     from '../brain/mcp/fields.js'
-import * as search     from '../brain/mcp/search.js'
-import * as narrate    from '../brain/mcp/narrate.js'
-import * as diagnostic from '../brain/mcp/diagnostic.js'
+const API_URL = 'http://127.0.0.1:43000'
 
-const allTools = [
-  get, whatIs, grep, lookAround, tagsList,
-  create, update, replace, insert, del, rename,
-  fields, search, narrate, diagnostic,
-]
+const LOOK_AROUND = {
+  name: 'look_around',
+  description: 'Start here. Shows knowledge base overview: scopes, tags, entry count, and guidelines. Also syncs available tools — call this when other tools are missing.',
+  inputSchema: { type: 'object', properties: {} },
+}
 
-const API_URL = `http://${ config.api.host }:${ config.api.port }`
+let tools = []
 
-const routes = Object.fromEntries(allTools.map(t => [ t.tool.name, t.route ]))
-
-let enabledFeatures = null
-
-async function fetchFeatures () {
+async function syncTools () {
   try {
-    const res = await fetch(`${ API_URL }/features`)
-    return await res.json()
+    const res = await fetch(`${ API_URL }/tools`)
+    tools = await res.json()
+    return tools.length
   } catch {
-    return {}
+    tools = []
+    return 0
   }
 }
 
-function getEnabledTools (features) {
-  return allTools
-      .filter(t => !t.feature || features[t.feature])
-      .map(t => t.tool)
-}
-
-const mcpServer = new Server(
-    { name: config.name, version: '1.1.0' },
-    { capabilities: { tools: {} } },
+const server = new Server(
+  { name: 'brain-thing', version: '0.0.1' },
+  { capabilities: { tools: {} } },
 )
 
-mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
-  if (!enabledFeatures) enabledFeatures = await fetchFeatures()
-  return { tools: getEnabledTools(enabledFeatures) }
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return { tools: [LOOK_AROUND, ...tools.filter(t => t.name !== 'look_around')] }
 })
 
-mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
 
-  const route = routes[name]
-  if (!route) {
-    throw new Error(`Unknown tool: ${ name }`)
+  if (name === 'look_around') {
+    const count = await syncTools()
+    await server.sendToolListChanged()
+    if (count === 0) {
+      return { content: [{ type: 'text', text: "Brain Thing isn't running. Start the app and try again." }], isError: true }
+    }
   }
 
-  const body = route.transform ? route.transform(args) : args
-
-  const fetchOptions = {
-    method: route.method,
-    headers: { 'Content-Type': 'application/json' },
+  try {
+    const opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) }
+    const res = await fetch(`${ API_URL }/${ name }`, opts)
+    const data = await res.json()
+    if (!res.ok) return { content: [{ type: 'text', text: data.text || `Error: ${ res.statusText }` }], isError: true }
+    return { content: [{ type: 'text', text: data.text }] }
+  } catch {
+    tools = []
+    await server.sendToolListChanged()
+    return { content: [{ type: 'text', text: 'Brain Thing stopped responding. Call look_around to reconnect.' }], isError: true }
   }
-
-  if (route.method === 'POST') {
-    fetchOptions.body = JSON.stringify(body)
-  }
-
-  const apiResponse = await fetch(`${ API_URL }/${ route.path }`, fetchOptions)
-  const data = await apiResponse.json()
-
-  if (!apiResponse.ok) {
-    return { content: [ { type: 'text', text: data.text || `Error: ${ apiResponse.statusText }` } ], isError: true }
-  }
-
-  return { content: [ { type: 'text', text: data.text } ] }
 })
 
-async function main () {
-  const transport = new StdioServerTransport()
-  await mcpServer.connect(transport)
-}
-
-main()
+await syncTools()
+const transport = new StdioServerTransport()
+await server.connect(transport)

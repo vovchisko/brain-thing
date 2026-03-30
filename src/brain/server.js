@@ -2,6 +2,28 @@ import { config, TOOLS }           from './config.js'
 import { createBus }               from './lib/bus.js'
 import { findScope }               from './modules/organize.js'
 
+import * as mcpGet        from './mcp/get.js'
+import * as mcpWhatIs     from './mcp/what_is.js'
+import * as mcpGrep       from './mcp/grep.js'
+import * as mcpLookAround from './mcp/look_around.js'
+import * as mcpTagsList   from './mcp/tags_list.js'
+import * as mcpCreate     from './mcp/create.js'
+import * as mcpUpdate     from './mcp/update.js'
+import * as mcpReplace    from './mcp/replace.js'
+import * as mcpInsert     from './mcp/insert.js'
+import * as mcpDelete     from './mcp/delete.js'
+import * as mcpRename     from './mcp/rename.js'
+import * as mcpFields     from './mcp/fields.js'
+import * as mcpSearch     from './mcp/search.js'
+import * as mcpNarrate    from './mcp/narrate.js'
+import * as mcpDiagnostic from './mcp/diagnostic.js'
+
+const ALL_MCP = [
+  mcpGet, mcpWhatIs, mcpGrep, mcpLookAround, mcpTagsList,
+  mcpCreate, mcpUpdate, mcpReplace, mcpInsert, mcpDelete, mcpRename,
+  mcpFields, mcpSearch, mcpNarrate, mcpDiagnostic,
+]
+
 const bus = createBus('brain')
 
 export const server = {
@@ -131,7 +153,7 @@ export async function start () {
   fastify.post(`/${ TOOLS.GET }`, wrap('get', handleGet))
   fastify.post(`/${ TOOLS.WHAT_IS }`, wrap('what_is', handleWhatIs))
   fastify.post(`/${ TOOLS.GREP }`, wrap('grep', handleGrep))
-  fastify.get(`/${ TOOLS.LOOK_AROUND }`, wrap('look_around', handleLookAround))
+  fastify.post(`/${ TOOLS.LOOK_AROUND }`, wrap('look_around', handleLookAround))
   fastify.post(`/${ TOOLS.TAGS_LIST }`, wrap('tags_list', handleTagsList))
   fastify.post(`/${ TOOLS.CREATE }`, wrap('create', handleCreate))
   fastify.post(`/${ TOOLS.UPDATE }`, wrap('update', handleUpdate))
@@ -147,7 +169,11 @@ export async function start () {
   fastify.post(`/${ TOOLS.DIAGNOSTIC }`, wrap('diagnostic', handleDiagnostic))
 
   fastify.get('/status', async () => ({ entries: store.entries.size, vault: config.vault }))
-  fastify.get('/features', async () => config.features)
+  fastify.get('/tools', async () => {
+    const tools = ALL_MCP.filter(m => !m.feature || config.features[m.feature]).map(m => m.tool)
+    bus.info(`MCP requested tools (${ tools.length })`)
+    return tools
+  })
 
   _changeCallback = async (filePaths) => {
     await obsidian.syncFiles(filePaths)
