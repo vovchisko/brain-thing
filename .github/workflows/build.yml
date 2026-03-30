@@ -16,12 +16,9 @@ jobs:
           - os: windows-latest
             build_cmd: npm run build:win -- -p never
             artifact: dist/*.exe
-          # - os: macos-latest
-          #   build_cmd: npm run build:mac
-          #   artifact: dist/*.dmg
-          # - os: ubuntu-latest
-          #   build_cmd: npm run build:linux
-          #   artifact: dist/*.AppImage
+          - os: macos-latest
+            build_cmd: npm run build:mac -- -p never
+            artifact: dist/*.dmg
 
     runs-on: ${{ matrix.os }}
 
