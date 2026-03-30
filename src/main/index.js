@@ -12,6 +12,9 @@ import icon                                                  from '../../resourc
 
 if (process.platform === 'win32') process.env.LANG = 'en_US.UTF-8'
 
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) { app.quit(); process.exit(0) }
+
 // --- Log bridge ---
 const logMap = new Map()
 const logOrder = []
@@ -114,6 +117,14 @@ init(dataDir)
 // Set paths that need Electron APIs
 config.resourcesPath = app.isPackaged ? process.resourcesPath : null
 config.brainDir = join(app.getAppPath(), 'src', 'brain')
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+})
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('dev.vovchisko.brain-thing')
