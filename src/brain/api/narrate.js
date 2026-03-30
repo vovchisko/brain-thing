@@ -32,13 +32,23 @@ export async function handleNarrate ({ name, collection }) {
 
   // Pre-chunk to report issues
   const { chunks, warnings } = chunkText(entry.content)
+  const force = collection.includes('--force')
+  const cleanCollection = collection.replace(/--force/g, '').trim()
+
+  if (warnings.length && !force) {
+    ev.warn(`${ warnings.length } chunking issues`)
+    return {
+      text: `Entry "${ name }" has ${ warnings.length } chunking issue(s):\n${ warnings.map(w => `- ${ w }`).join('\n') }\n\nFix the content or re-run with --force: narrate { name: "${ name }", collection: "${ cleanCollection } --force" }`,
+    }
+  }
 
   // Set narrate field — watcher will pick it up and send to TTS
-  await obsidian.updateFile(entry, entry.content, { narrate: collection })
+  const narrateValue = force ? cleanCollection + ' --force' : cleanCollection
+  await obsidian.updateFile(entry, entry.content, { narrate: narrateValue })
 
   let response = `Narrate set on "${ name }" (${ chunks.length } chunks)`
   if (warnings.length) {
-    response += `\n\nChunking warnings:\n${ warnings.map(w => `- ${ w }`).join('\n') }`
+    response += `\n\nChunking warnings (forced):\n${ warnings.map(w => `- ${ w }`).join('\n') }`
   }
 
   ev.ok(response.split('\n')[0])

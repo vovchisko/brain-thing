@@ -29,15 +29,16 @@ async function isRunning () {
 }
 
 /**
- * Parse narrate field: "collection --voice:alba --language:uk"
+ * Parse narrate field: "collection --voice:alba --language:uk --force"
  */
 function parseNarrate (value) {
   const voiceMatch = value.match(/--voice:(\S+)/)
   const langMatch = value.match(/--language:(\S+)/)
+  const force = /--force/.test(value)
   const voice = voiceMatch ? voiceMatch[1] : 'ava'
   const language = langMatch ? langMatch[1] : 'en'
-  const collection = value.replace(/--voice:\S+/g, '').replace(/--language:\S+/g, '').trim() || null
-  return { collection, voice, language }
+  const collection = value.replace(/--voice:\S+/g, '').replace(/--language:\S+/g, '').replace(/--force/g, '').trim() || null
+  return { collection, voice, language, force }
 }
 
 async function send (name, chunks, { collection, voice, language } = {}) {
@@ -106,7 +107,7 @@ async function init () {
     const state = chunkEntry(entry)
     if (state.warnings.length) {
       bus.info('chunk', `${ entry.name } ${ state.total } chunks, ${ state.warnings.length } warning(s)`)
-      for (const w of state.warnings) log(`  ⚠ ${ w }`)
+      for (const w of state.warnings) bus.warn('chunk', w)
     }
   }
   saveChunkState()
@@ -144,7 +145,7 @@ async function onFilesChanged (filePaths) {
 
     bus.info('chunk', `${ name } rechunked: ${ state.total } chunks`)
     if (state.warnings.length) {
-      for (const w of state.warnings) log(`  ⚠ ${ w }`)
+      for (const w of state.warnings) bus.warn('chunk', w)
     }
 
     toNarrate.push(entry)
