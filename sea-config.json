@@ -1,0 +1,5 @@
+{
+  "main": "out/mcp-bundle.cjs",
+  "output": "out/sea-prep.blob",
+  "disableExperimentalSEAWarning": true
+}
