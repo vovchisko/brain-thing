@@ -2,6 +2,7 @@
  * @typedef {Object} EntryData
  * @property {string} name
  * @property {string[]} [tags]
+ * @property {string} [project]
  * @property {string} [source_file]
  * @property {string} [content_hash]
  * @property {string[]} [aliases]
@@ -16,6 +17,7 @@ export class Entry {
    */
   constructor (data) {
     this.name = data.name
+    this.project = data.project || null
     this.tags = data.tags || []
     this.source_file = data.source_file || null
     this.content_hash = data.content_hash || null

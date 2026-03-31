@@ -1,6 +1,5 @@
 import { store }      from '../modules/store.js'
 import { config }     from '../config.js'
-import { findScope }  from '../modules/organize.js'
 import { createBus }  from '../lib/bus.js'
 
 const bus = createBus('fields')
@@ -9,13 +8,13 @@ const SKIP = new Set([ 'name', 'content', 'source_file', 'content_hash', 'aliase
 
 /**
  * Introspect frontmatter fields across entries.
- * @param {{ tag?: string, scope?: string }} body
+ * @param {{ tags?: string[], project?: string }} body
  */
-export async function handleFields ({ tags, scope } = {}) {
-  bus.info(scope || (tags?.length ? tags.join(', ') : null) || 'all')
+export async function handleFields ({ tags, project } = {}) {
+  bus.info(project || (tags?.length ? tags.join(', ') : null) || 'all')
   let entries = [ ...store.entries ]
 
-  if (scope) entries = entries.filter(e => findScope(e)?.name === scope)
+  if (project) entries = entries.filter(e => e.project === project)
   if (tags?.length) entries = entries.filter(e =>
     tags.some(tag => e.tags?.some(t => t === tag || t.startsWith(tag + '/')))
   )
@@ -52,7 +51,7 @@ export async function handleFields ({ tags, scope } = {}) {
   const typeDefs = config.fields || {}
   let response = `Fields across ${ entries.length } entries`
   if (tags?.length) response += ` [tags: ${ tags.join(', ') }]`
-  if (scope) response += ` [scope: ${ scope }]`
+  if (project) response += ` [project: ${ project }]`
   response += ':\n'
 
   // Sort: system fields first, then by count desc

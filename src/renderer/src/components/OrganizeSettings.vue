@@ -4,14 +4,15 @@ import { computed, onMounted, ref, toRaw } from 'vue'
 const organize = ref({
   useOrganize: false,
   default: 'Input',
-  scopes: [],
-  noScopeRules: [],
+  projects: {},
+  rules: [],
 })
 const original = ref(null)
 const saved = ref(false)
 const expanded = ref(new Set())
 
 const dirty = computed(() => JSON.stringify(organize.value) !== JSON.stringify(original.value))
+const projectList = computed(() => Object.entries(organize.value.projects || {}))
 
 onMounted(async () => {
   const cfg = await window.api.config.get()
@@ -34,27 +35,36 @@ function cancel () {
   organize.value = JSON.parse(JSON.stringify(original.value))
 }
 
-function addScope () {
-  organize.value.scopes.push({
-    name: '',
-    folder: '',
-    match: { tag: '', field: '', value: '' },
-    rules: [],
-  })
+function addProject () {
+  if (!organize.value.projects) organize.value.projects = {}
+  organize.value.projects[''] = { folder: '', rules: [] }
 }
 
-function removeScope (i) { organize.value.scopes.splice(i, 1) }
-
-function addRule (list) {
-  list.push({ tag: '', field: '', value: '', folder: '' })
+function removeProject (key) {
+  delete organize.value.projects[key]
+  expanded.value.delete(key)
 }
 
-function removeRule (list, i) { list.splice(i, 1) }
-
-function toggleCollapse (i) {
-  if (expanded.value.has(i)) expanded.value.delete(i)
-  else expanded.value.add(i)
+function renameProject (oldKey, newKey) {
+  const val = organize.value.projects[oldKey]
+  delete organize.value.projects[oldKey]
+  organize.value.projects[newKey] = val
+  if (expanded.value.has(oldKey)) {
+    expanded.value.delete(oldKey)
+    expanded.value.add(newKey)
+  }
 }
+
+function toggleExpand (key) {
+  if (expanded.value.has(key)) expanded.value.delete(key)
+  else expanded.value.add(key)
+}
+
+function addProjectRule (proj) { proj.rules.push({ tag: '', field: '', value: '', folder: '' }) }
+function removeProjectRule (proj, i) { proj.rules.splice(i, 1) }
+
+function addRule () { organize.value.rules.push({ tag: '', field: '', value: '', folder: '' }) }
+function removeRule (i) { organize.value.rules.splice(i, 1) }
 </script>
 
 <template>
@@ -74,89 +84,71 @@ function toggleCollapse (i) {
       <input v-model="organize.default" class="g-input" placeholder="Input" spellcheck="false" />
     </div>
 
-    <!-- Scopes -->
+    <!-- Projects -->
     <div class="org_block">
       <div class="org_block_head">
-        <span class="org_block_title">Scopes</span>
-        <button class="g-btn" @click="addScope">Add scope</button>
+        <span class="org_block_title">Projects</span>
+        <button class="g-btn" @click="addProject">Add project</button>
       </div>
 
-      <div v-for="(scope, si) in organize.scopes" :key="si" class="org_scope">
-        <div class="org_scope_header" @click="toggleCollapse(si)">
-          <span class="org_scope_chevron">{{ expanded.has(si) ? '&#9660;' : '&#9654;' }}</span>
-          <span class="org_scope_title">{{ scope.name || 'unnamed' }}</span>
-          <span class="org_scope_info">{{ scope.folder || '—' }} &middot; {{ scope.rules.length }} rules</span>
-          <button class="org_x" @click.stop="removeScope(si)">&times;</button>
+      <div v-for="[key, proj] in projectList" :key="key" class="org_proj">
+        <div class="org_proj_header" @click="toggleExpand(key)">
+          <span class="org_proj_chevron">{{ expanded.has(key) ? '&#9660;' : '&#9654;' }}</span>
+          <span class="org_proj_title">{{ key || 'unnamed' }}</span>
+          <span class="org_proj_info">{{ proj.folder || '—' }} &middot; {{ (proj.rules || []).length }} rules</span>
+          <button class="org_x" @click.stop="removeProject(key)">&times;</button>
         </div>
 
-        <template v-if="expanded.has(si)">
-        <div class="org_scope_row">
-          <div class="org_scope_labeled">
-            <span class="org_lbl">id</span>
-            <input v-model="scope.name" class="g-input org_scope_name" placeholder="scope name" spellcheck="false" />
+        <template v-if="expanded.has(key)">
+          <div class="org_proj_fields">
+            <div class="org_proj_labeled">
+              <span class="org_lbl">project</span>
+              <input :value="key" class="g-input" placeholder="project name" spellcheck="false"
+                     @change="renameProject(key, $event.target.value)" />
+            </div>
+            <div class="org_proj_labeled _grow">
+              <span class="org_lbl">base folder</span>
+              <input v-model="proj.folder" class="g-input" placeholder="folder" spellcheck="false" />
+            </div>
           </div>
-          <div class="org_scope_labeled org_scope_labeled._grow">
-            <span class="org_lbl">folder</span>
-            <input v-model="scope.folder" class="g-input" placeholder="base folder" spellcheck="false" />
-          </div>
-        </div>
 
-        <div class="org_scope_section">
-          <span class="org_lbl">Match (entry belongs to this scope when)</span>
-          <div class="org_cond">
-            <input v-model="scope.match.tag" class="g-input org_cond_cell" placeholder="tag prefix" spellcheck="false" />
-            <input v-model="scope.match.field" class="g-input org_cond_cell" placeholder="field" spellcheck="false" />
-            <span class="org_cond_eq">=</span>
-            <input v-model="scope.match.value" class="g-input org_cond_cell" placeholder="value" spellcheck="false" />
-          </div>
-        </div>
-
-        <div class="org_scope_section">
-          <div class="org_lbl">Rules (first match wins)</div>
-          <div v-for="(rule, ri) in scope.rules" :key="ri" class="org_rule">
-            <div class="org_rule_conds">
+          <div class="org_proj_section">
+            <div v-for="(rule, ri) in proj.rules" :key="ri" class="org_rule">
               <input v-model="rule.tag" class="g-input" placeholder="tag" spellcheck="false" />
               <input v-model="rule.field" class="g-input" placeholder="field" spellcheck="false" />
-              <span class="org_rule_eq">=</span>
+              <span class="org_eq">=</span>
               <input v-model="rule.value" class="g-input" placeholder="value" spellcheck="false" />
-            </div>
-            <div class="org_rule_dest">
-              <span class="org_rule_arrow">&rarr;</span>
+              <span class="org_arrow">&rarr;</span>
               <input v-model="rule.folder" class="g-input" placeholder="subfolder" spellcheck="false" />
-              <button class="org_x" @click="removeRule(scope.rules, ri)">&times;</button>
+              <button class="org_x" @click="removeProjectRule(proj, ri)">&times;</button>
             </div>
+            <button class="g-btn" @click="addProjectRule(proj)">Add rule</button>
           </div>
-          <button class="g-btn" @click="addRule(scope.rules)">Add rule</button>
-        </div>
         </template>
       </div>
     </div>
 
-    <!-- Fallback -->
+    <!-- Fallback rules -->
     <div class="org_block">
       <div class="org_block_head">
-        <span class="org_block_title">Fallback rules</span>
-        <button class="g-btn" @click="addRule(organize.noScopeRules)">Add rule</button>
+        <div class="org_block_title">Fallback rules</div>
+        <button class="g-btn" @click="addRule">Add rule</button>
       </div>
-      <div v-for="(rule, i) in organize.noScopeRules" :key="i" class="org_rule">
-        <div class="org_rule_conds">
-          <input v-model="rule.tag" class="g-input" placeholder="tag" spellcheck="false" />
-          <input v-model="rule.field" class="g-input" placeholder="field" spellcheck="false" />
-          <span class="org_rule_eq">=</span>
-          <input v-model="rule.value" class="g-input" placeholder="value" spellcheck="false" />
-        </div>
-        <div class="org_rule_dest">
-          <span class="org_rule_arrow">&rarr;</span>
-          <input v-model="rule.folder" class="g-input" placeholder="folder" spellcheck="false" />
-          <button class="org_x" @click="removeRule(organize.noScopeRules, i)">&times;</button>
-        </div>
+      <div v-for="(rule, i) in organize.rules" :key="i" class="org_rule">
+        <input v-model="rule.tag" class="g-input" placeholder="tag" spellcheck="false" />
+        <input v-model="rule.field" class="g-input" placeholder="field" spellcheck="false" />
+        <span class="org_eq">=</span>
+        <input v-model="rule.value" class="g-input" placeholder="value" spellcheck="false" />
+        <span class="org_arrow">&rarr;</span>
+        <input v-model="rule.folder" class="g-input" placeholder="folder" spellcheck="false" />
+        <button class="org_x" @click="removeRule(i)">&times;</button>
       </div>
     </div>
 
     <div class="org_footer">
       <div>
         <div v-if="saved" class="g-saved">Saved</div>
-        <div class="g-hint">Scopes match entries by condition. Rules place matched entries into subfolders.</div>
+        <div class="g-hint">Each project maps to a base folder. Rules sort entries into subfolders by tag or field.</div>
       </div>
       <div class="org_footer_btns">
         <button class="g-btn" :disabled="!dirty" @click="cancel">Cancel</button>
@@ -168,10 +160,7 @@ function toggleCollapse (i) {
 
 <style scoped lang="scss">
 .org {
-
-  & .g-input {
-    width: 140px;
-  }
+  & .g-input { width: 140px; }
 
   &_toggle {
     display: flex;
@@ -188,10 +177,7 @@ function toggleCollapse (i) {
       &._on {
         background: var(--positive);
         color: var(--text);
-
-        &:hover {
-          background: var(--positive-hover);
-        }
+        &:hover { background: var(--positive-hover); }
       }
     }
   }
@@ -227,7 +213,7 @@ function toggleCollapse (i) {
     }
   }
 
-  &_scope {
+  &_proj {
     background: var(--bg);
     border: 1px solid var(--bg-btn);
     border-radius: var(--radius-md);
@@ -240,42 +226,39 @@ function toggleCollapse (i) {
       gap: var(--gap-sm);
       cursor: pointer;
       padding: var(--gap-xs) 0;
-      margin-bottom: var(--gap-xs);
       user-select: none;
     }
+
     &_chevron {
       font-size: 10px;
       color: var(--text-dim);
       width: 14px;
       flex-shrink: 0;
     }
+
     &_title {
       font-weight: 600;
       color: var(--text);
     }
+
     &_info {
       flex: 1;
       font-size: var(--font-xs);
       color: var(--text-dim);
     }
-    &_row {
+
+    &_fields {
       display: flex;
       align-items: flex-end;
       gap: var(--gap-sm);
-      margin-bottom: var(--gap-sm);
-    }
-    &_name {
-      font-weight: 600;
+      margin: var(--gap-sm) 0;
     }
 
     &_labeled {
       display: flex;
       flex-direction: column;
       gap: 2px;
-
-      &._grow {
-        flex: 1;
-      }
+      &._grow { flex: 1; }
     }
 
     &_section {
@@ -283,53 +266,20 @@ function toggleCollapse (i) {
     }
   }
 
-  &_cond {
+  &_rule {
     display: flex;
     align-items: center;
     gap: var(--gap-xs);
-    margin-top: var(--gap-xs);
-
-    &_cell {
+    margin-bottom: var(--gap-sm);
+    & .g-input {
       flex: 1;
-      font-size: var(--font-xs);
-    }
-
-    &_eq {
-      color: var(--text-dim);
-      font-size: var(--font-xs);
-      flex-shrink: 0;
     }
   }
 
-  &_rule {
-    margin-bottom: var(--gap-sm);
-    padding-bottom: var(--gap-sm);
-    border-bottom: 1px solid var(--bg-btn);
-    display: flex;
-
-    &_conds {
-      display: flex;
-      align-items: center;
-      gap: var(--gap-xs);
-      margin-bottom: var(--gap-xs);
-    }
-
-    &_eq {
-      color: var(--text-dim);
-      font-size: var(--font-xs);
-      flex-shrink: 0;
-    }
-
-    &_dest {
-      display: flex;
-      align-items: center;
-      gap: var(--gap-xs);
-    }
-
-    &_arrow {
-      color: var(--text-dim);
-      flex-shrink: 0;
-    }
+  &_arrow, &_eq {
+    color: var(--text-dim);
+    font-size: var(--font-xs);
+    flex-shrink: 0;
   }
 
   &_x {
@@ -340,10 +290,7 @@ function toggleCollapse (i) {
     width: 20px;
     text-align: center;
     flex-shrink: 0;
-
-    &:hover {
-      color: var(--negative);
-    }
+    &:hover { color: var(--negative); }
   }
 
   &_footer {

@@ -13,7 +13,10 @@ export const IPC = {
   STAT_ENTRIES: 'stat:entries',
   STAT_ISSUES: 'stat:issues',
   STAT_FIELDS: 'stat:fields',
-  STAT_SCOPES: 'stat:scopes',
+  STAT_PROJECTS: 'stat:projects',
   STAT_STATUS: 'stat:status',
   STAT_GET: 'stat:get',
+  MCP_STATUS: 'mcp:status',
+  MCP_REGISTER: 'mcp:register',
+  MCP_UNREGISTER: 'mcp:unregister',
 }

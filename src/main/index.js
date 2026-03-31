@@ -5,7 +5,7 @@ import { electronApp, is, optimizer }                        from '@electron-too
 import { init, config, getConfig, setConfig, resetConfig, getConfigPath } from '../brain/config.js'
 import { start, hotSwap, server }                            from '../brain/server.js'
 import { onBrainEvent }                                      from '../brain/lib/bus.js'
-import { createTray }                                        from './tray'
+import { createTray, checkForUpdate }                        from './tray'
 import { IPC }                                               from '../shared/ipc'
 import { LOG_BUFFER_SIZE }                                   from '../shared/constants'
 import icon                                                  from '../../resources/icon.png?asset'
@@ -43,7 +43,7 @@ const statsCache = {
   entries: 0,
   issues: { summary: 0, links: 0 },
   fields: {},
-  scopes: { scopes: [], unscoped: 0 },
+  projects: { projects: {}, noProject: 0 },
 }
 
 function pushStat (channel, key, value) {
@@ -57,7 +57,7 @@ server.onStatus    = (s) => pushStat(IPC.STAT_STATUS, 'status', s)
 server.onEntries   = (n) => pushStat(IPC.STAT_ENTRIES, 'entries', n)
 server.onIssues    = (d) => pushStat(IPC.STAT_ISSUES, 'issues', d)
 server.onFields    = (d) => pushStat(IPC.STAT_FIELDS, 'fields', d)
-server.onScopes    = (d) => pushStat(IPC.STAT_SCOPES, 'scopes', d)
+server.onProjects  = (d) => pushStat(IPC.STAT_PROJECTS, 'projects', d)
 server.onLiveCount = (n) => pushStat(IPC.STAT_ENTRIES, 'entries', n)
 
 // --- Window ---
@@ -164,6 +164,12 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.LOG_BUFFER, () => [...logOrder])
   ipcMain.handle(IPC.STAT_GET, () => ({ ...statsCache }))
 
+  // MCP registration
+  const reg = import('../brain/modules/register.js')
+  ipcMain.handle(IPC.MCP_STATUS, async () => (await reg).mcpStatus())
+  ipcMain.handle(IPC.MCP_REGISTER, async () => (await reg).register())
+  ipcMain.handle(IPC.MCP_UNREGISTER, async () => (await reg).unregister())
+
   ipcMain.handle(IPC.PICK_FOLDER, async () => {
     const win = mainWindow || BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
@@ -176,6 +182,8 @@ app.whenReady().then(() => {
   start().catch((err) => {
     console.error('[brain] Failed to start:', err.message)
   })
+
+  checkForUpdate()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

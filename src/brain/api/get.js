@@ -1,6 +1,6 @@
 import { store }                                         from '../modules/store.js'
 import { extractWikilinks, isEmptyEntry, stripBrackets } from '../lib/utils.js'
-import { entryNotFoundMessage, findEntry, formatEntry }  from './_helpers.js'
+import { entryNotFoundMessage, entryProps, findEntry, formatEntry } from './_helpers.js'
 import { createBus }                                     from '../lib/bus.js'
 
 const bus = createBus('get')
@@ -19,7 +19,7 @@ export async function handleGet ({ name }) {
     ev.warn('not found')
     return { text: await entryNotFoundMessage(cleanName) }
   }
-  ev.ok(`${ match.name }${ match.tags?.length ? ` (${ match.tags.join(', ') })` : '' }`)
+  ev.ok(entryProps(match))
 
   let response = formatEntry(match)
 

@@ -1,25 +1,24 @@
 import { store }     from '../modules/store.js'
 import { config }    from '../config.js'
-import { findScope } from '../modules/organize.js'
 import { createBus } from '../lib/bus.js'
 
 const bus = createBus('look_around')
 
 export async function handleLookAround () {
-  const scopes = config.organize?.scopes || []
-  bus.info(`${ store.entries.size } entries, ${ scopes.length } scopes`)
-  const scopeCounts = new Map()
+  const projectCounts = new Map()
   const tags = new Map()
 
   for (const entry of store.entries) {
-    const scope = findScope(entry)
-    const name = scope?.name || '(no scope)'
-    scopeCounts.set(name, (scopeCounts.get(name) || 0) + 1)
+    const proj = entry.project || '(no project)'
+    projectCounts.set(proj, (projectCounts.get(proj) || 0) + 1)
 
     for (const tag of entry.tags || []) {
       tags.set(tag, (tags.get(tag) || 0) + 1)
     }
   }
+
+  const projectList = [...projectCounts.entries()].sort((a, b) => b[1] - a[1])
+  bus.info(`${ store.entries.size } entries, ${ projectList.length } projects`)
 
   let result = `# ${ config.name }\n\n`
   result += `Total: ${ store.entries.size } entries\n`
@@ -28,30 +27,22 @@ export async function handleLookAround () {
   }
   result += '\n'
 
-  if (scopes.length) {
-    result += `> Scopes are macro-filters. Use { scope: "Name" } with search, grep, what_is, fields, diagnostic to narrow results.\n\n`
+  // Projects
+  if (projectList.some(([name]) => name !== '(no project)')) {
+    result += `> Use { project: "Name" } with search, grep, what_is, fields, diagnostic to filter by project.\n\n`
 
-    for (const scope of scopes) {
-      const count = scopeCounts.get(scope.name) || 0
-      const doc = store.entries.get(scope.name)
-
-      result += `## ${ scope.name } (${ count } entries)\n`
+    for (const [name, count] of projectList) {
+      if (name === '(no project)') continue
+      const doc = store.entries.get(name)
+      result += `## ${ name } (${ count } entries)\n`
       if (doc?.summary) result += `${ doc.summary }\n`
-      result += `\`{ scope: "${ scope.name }" }\``
-      if (scope.match?.tag && scope.match?.field) {
-        result += ` — matches tag prefix "${ scope.match.tag }" AND ${ scope.match.field } = "${ scope.match.value }"`
-      } else if (scope.match?.tag) {
-        result += ` — matches tag prefix "${ scope.match.tag }"`
-      } else if (scope.match?.field) {
-        result += ` — matches ${ scope.match.field } = "${ scope.match.value }"`
-      }
-      result += '\n'
-      if (doc) result += `Details: [[${ scope.name }]]\n`
+      result += `\`{ project: "${ name }" }\`\n`
+      if (doc) result += `Details: [[${ name }]]\n`
       result += '\n'
     }
 
-    const unscoped = scopeCounts.get('(no scope)') || 0
-    if (unscoped) result += `(no scope): ${ unscoped } entries\n\n`
+    const unscoped = projectCounts.get('(no project)') || 0
+    if (unscoped) result += `(no project): ${ unscoped } entries\n\n`
   }
 
   // Tags

@@ -1,4 +1,4 @@
-import { TOOLS } from '../config.js'
+import { TOOLS } from '../../shared/constants.js'
 
 export const tool = {
   name: TOOLS.DELETE,

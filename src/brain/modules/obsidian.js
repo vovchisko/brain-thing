@@ -449,7 +449,7 @@ async function run () {
   // Persist missing dates into frontmatter
   await stampMissingDates()
 
-  // Auto-organize entries by scope rules
+  // Auto-organize entries by project/rules
   for (const entry of [ ...store.entries ]) {
     await organizeFile(entry)
   }

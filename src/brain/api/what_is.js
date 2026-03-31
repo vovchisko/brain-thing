@@ -1,6 +1,5 @@
 import { store }       from '../modules/store.js'
 import { formatEntry } from './_helpers.js'
-import { findScope }   from '../modules/organize.js'
 import { createBus }   from '../lib/bus.js'
 
 const bus = createBus('what_is')
@@ -33,11 +32,11 @@ function formatEntryList (entries, options = {}) {
 
 /**
  * Semantic search by meaning.
- * @param {{ query: string, tags?: string[], scope?: string }} body
+ * @param {{ query: string, tags?: string[], project?: string }} body
  * @returns {Promise<{ text: string }>}
  */
-export async function handleWhatIs ({ query, tags, scope }) {
-  const secondary = scope ? `in ${ scope }` : tags?.length ? `in tags: ${ tags.join(', ') }` : null
+export async function handleWhatIs ({ query, tags, project }) {
+  const secondary = project ? `in ${ project }` : tags?.length ? `in tags: ${ tags.join(', ') }` : null
   const ev = bus.op(`"${ query }"`, secondary)
 
   const exact = store.entries.get(query)
@@ -55,8 +54,8 @@ export async function handleWhatIs ({ query, tags, scope }) {
   const results = await store.entries.searchByVector(query, 10)
   let filtered = results.filter(r => r.score > 0.6)
 
-  if (scope) {
-    filtered = filtered.filter(r => findScope(r.entity)?.name === scope)
+  if (project) {
+    filtered = filtered.filter(r => r.entity.project === project)
   }
 
   if (tags && tags.length > 0) {

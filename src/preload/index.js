@@ -20,7 +20,12 @@ const api = {
     onEntries: (cb) => ipcRenderer.on(IPC.STAT_ENTRIES, (_e, d) => cb(d)),
     onIssues:  (cb) => ipcRenderer.on(IPC.STAT_ISSUES, (_e, d) => cb(d)),
     onFields:  (cb) => ipcRenderer.on(IPC.STAT_FIELDS, (_e, d) => cb(d)),
-    onScopes:  (cb) => ipcRenderer.on(IPC.STAT_SCOPES, (_e, d) => cb(d)),
+    onProjects: (cb) => ipcRenderer.on(IPC.STAT_PROJECTS, (_e, d) => cb(d)),
+  },
+  mcp: {
+    status: () => ipcRenderer.invoke(IPC.MCP_STATUS),
+    register: () => ipcRenderer.invoke(IPC.MCP_REGISTER),
+    unregister: () => ipcRenderer.invoke(IPC.MCP_UNREGISTER),
   },
   pickFolder: () => ipcRenderer.invoke(IPC.PICK_FOLDER),
   isDirectory: (p) => ipcRenderer.invoke(IPC.FS_IS_DIR, p),

@@ -2,7 +2,6 @@ import { store }      from '../modules/store.js'
 import { config }     from '../config.js'
 import { ApiError }   from '../lib/api.js'
 import { FieldType }  from '../lib/field-types.js'
-import { findScope }  from '../modules/organize.js'
 import { createBus }  from '../lib/bus.js'
 
 const bus = createBus('search')
@@ -17,11 +16,11 @@ function getType (field) {
 
 /**
  * Search entries by field filters.
- * @param {{ filters: Array, tags?: string[], scope?: string, limit?: number }} body
+ * @param {{ filters: Array, tags?: string[], project?: string, limit?: number }} body
  */
-export async function handleSearch ({ filters, tags, scope, limit } = {}) {
+export async function handleSearch ({ filters, tags, project, limit } = {}) {
   const parts = []
-  if (scope) parts.push(`scope: ${ scope }`)
+  if (project) parts.push(`project: ${ project }`)
   if (tags?.length) parts.push(`tags: ${ tags.join(', ') }`)
   const ev = bus.op(`${ (filters || []).length } filters`, parts.length ? parts.join(', ') : null)
 
@@ -38,7 +37,7 @@ export async function handleSearch ({ filters, tags, scope, limit } = {}) {
   const maxResults = Math.min(limit || DEFAULT_LIMIT, 200)
   let entries = [ ...store.entries ]
 
-  if (scope) entries = entries.filter(e => findScope(e)?.name === scope)
+  if (project) entries = entries.filter(e => e.project === project)
   if (tags?.length) entries = entries.filter(e =>
     tags.some(tag => e.tags?.some(t => t === tag || t.startsWith(tag + '/')))
   )

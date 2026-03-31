@@ -1,4 +1,4 @@
-import { TOOLS } from '../config.js'
+import { TOOLS } from '../../shared/constants.js'
 
 export const tool = {
   name: TOOLS.GREP,
@@ -10,13 +10,13 @@ Results grouped:
 - Title matches first
 - Content matches sorted by occurrence count
 
-Case-insensitive. Use tags/scope to narrow results.`,
+Case-insensitive. Use tags/project to narrow results.`,
   inputSchema: {
     type: 'object',
     properties: {
       text: { type: 'string', description: 'Text to find' },
       tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (prefix match, OR)' },
-      scope: { type: 'string', description: 'Filter by scope name' },
+      project: { type: 'string', description: 'Filter by project' },
     },
     required: ['text'],
   },

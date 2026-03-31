@@ -7,7 +7,7 @@ export const state = reactive({
   entries: 0,
   issues: { summary: 0, links: 0 },
   fields: {},
-  scopes: { scopes: [], unscoped: 0 },
+  projects: { projects: {}, noProject: 0 },
   verboseConsole: false,
 })
 
@@ -52,7 +52,7 @@ export async function initState () {
   window.api.stats.onEntries((d) => state.entries = d)
   window.api.stats.onIssues((d) => state.issues = d)
   window.api.stats.onFields((d) => state.fields = d)
-  window.api.stats.onScopes((d) => state.scopes = d)
+  window.api.stats.onProjects((d) => state.projects = d)
 
   window.api.logs.onPush(pushLog)
 }

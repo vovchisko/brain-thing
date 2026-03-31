@@ -1,4 +1,4 @@
-import { TOOLS } from '../config.js'
+import { TOOLS } from '../../shared/constants.js'
 
 export const tool = {
   name: TOOLS.WHAT_IS,
@@ -10,14 +10,14 @@ Low-confidence matches: returns a ranked list with names, tags, and similarity s
 Usage:
 - Describe what you're looking for in natural language
 - Works even if you don't know exact terminology
-- Filter by tags or scope to narrow results
+- Filter by tags or project to narrow results
 - Exact name match returns full entry immediately`,
   inputSchema: {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'What to search for' },
       tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (prefix match, OR)' },
-      scope: { type: 'string', description: 'Filter by scope name' },
+      project: { type: 'string', description: 'Filter by project' },
     },
     required: ['query'],
   },

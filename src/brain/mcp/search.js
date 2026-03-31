@@ -1,4 +1,4 @@
-import { TOOLS } from '../config.js'
+import { TOOLS } from '../../shared/constants.js'
 
 export const tool = {
   name: TOOLS.SEARCH,
@@ -28,7 +28,7 @@ Each filter: { field, value, op? }
         },
         description: 'Array of field conditions',
       },
-      scope: { type: 'string', description: 'Pre-filter by scope name (from look_around)' },
+      project: { type: 'string', description: 'Pre-filter by project (from look_around)' },
       tags: { type: 'array', items: { type: 'string' }, description: 'Pre-filter by tags (prefix match, OR)' },
       limit: { type: 'number', description: 'Max results (default 50, max 200)' },
     },

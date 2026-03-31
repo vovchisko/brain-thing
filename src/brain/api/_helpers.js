@@ -4,6 +4,20 @@ import { config }    from '../config.js'
 import { orderKeys } from '../lib/utils.js'
 
 const HIDDEN_FIELDS = new Set([ 'source_file', 'content_hash', 'content' ])
+const LOG_SKIP = new Set([ 'name', 'source_file', 'content_hash', 'content', 'created', 'modified', 'summary', 'aliases' ])
+
+/** Short props string for bus log: project, tags, custom fields */
+export function entryProps (entry) {
+  const parts = []
+  if (entry.project) parts.push(entry.project)
+  if (entry.tags?.length) parts.push(entry.tags[0])
+  for (const [k, v] of Object.entries(entry)) {
+    if (LOG_SKIP.has(k) || k === 'project' || k === 'tags') continue
+    if (v == null || (Array.isArray(v) && !v.length)) continue
+    parts.push(`${ k }=${ v }`)
+  }
+  return parts.join(', ') || null
+}
 
 /**
  * Format entry as YAML frontmatter + markdown content.

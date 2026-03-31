@@ -16,6 +16,7 @@
     "build": "electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && npm run build:mcp && electron-builder --dir",
+    "test": "node src/brain/test.js",
     "test:brain": "node src/brain/test.js",
     "build:mcp": "node scripts/build-mcp.mjs",
     "build:win": "npm run build && npm run build:mcp && electron-builder --win",

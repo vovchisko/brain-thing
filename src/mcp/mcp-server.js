@@ -3,12 +3,13 @@
 import { Server }                                        from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport }                          from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { APP_NAME }                                      from '../shared/constants.js'
 
 const API_URL = 'http://127.0.0.1:43000'
 
 const LOOK_AROUND = {
   name: 'look_around',
-  description: 'Start here. Shows knowledge base overview: scopes, tags, entry count, and guidelines. Also syncs available tools — call this when other tools are missing.',
+  description: 'Start here. Shows knowledge base overview: projects, tags, entry count, and guidelines. Also syncs available tools — call this when other tools are missing.',
   inputSchema: { type: 'object', properties: {} },
 }
 
@@ -26,7 +27,7 @@ async function syncTools () {
 }
 
 const server = new Server(
-  { name: 'brain-thing', version: '0.0.1' },
+  { name: APP_NAME, version: '0.0.1' },
   { capabilities: { tools: {} } },
 )
 

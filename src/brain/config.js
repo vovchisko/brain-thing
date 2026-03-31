@@ -1,31 +1,49 @@
 import { join }                                                from 'path'
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { FIELD }                                               from './lib/field-types.js'
+import { APP_NAME, TOOLS }                                     from '../shared/constants.js'
 
-export const TOOLS = Object.freeze({
-  GET: 'get',
-  WHAT_IS: 'what_is',
-  GREP: 'grep',
-  LOOK_AROUND: 'look_around',
-  TAGS_LIST: 'tags_list',
-  CREATE: 'create',
-  UPDATE: 'update',
-  REPLACE: 'replace',
-  INSERT: 'insert',
-  DELETE: 'delete',
-  RENAME: 'rename',
-  FIELDS: 'fields',
-  SEARCH: 'search',
-  NARRATE: 'narrate',
-  DIAGNOSTIC: 'diagnostic',
-})
+export { TOOLS }
 
-const CORE_FIELD_NAMES = new Set(['tags', 'created', 'modified', 'summary'])
+const CORE_FIELD_NAMES = new Set(['project', 'tags', 'created', 'modified', 'summary'])
 
 const TYPE_MAP = { string: FIELD.STRING, date: FIELD.DATE, number: FIELD.NUMBER, list: FIELD.LIST }
 
+/**
+ * Default config. Written to config.json on first start.
+ * User edits via Settings UI or manually in config.json.
+ *
+ * @property {number} v — Config schema version (for migrations)
+ * @property {string} vaultPath — Absolute path to Obsidian vault
+ * @property {string} guidelineName — Entry name whose content is appended to look_around output
+ * @property {boolean} normalizeTypography — Replace curly quotes/dashes with ASCII on import
+ * @property {boolean} verboseConsole — Show system events in UI log panel (frontend-only filter)
+ * @property {Object} features — Feature gates (e.g. tts)
+ * @property {Object} ignore — Vault scan exclusions
+ * @property {string[]} ignore.folders — Folder names to skip entirely
+ * @property {string[]} ignore.patterns — Filename substrings to skip (case-insensitive)
+ * @property {Object} organize — File auto-organization settings
+ * @property {boolean} organize.useOrganize — Master toggle
+ * @property {string} organize.default — Folder for new entries (create tool lands here)
+ * @property {Object<string, {folder: string, rules: Rule[]}>} organize.projects — Per-project folder mapping
+ *   Each project: { folder: base folder, rules: [{ tag?, field?, value?, folder }] }
+ *   Rules checked first (tag prefix match AND/OR field=value), fallback to base folder.
+ * @property {Rule[]} organize.rules — Fallback rules for entries without a project
+ * @property {Array<{name, type, desc, core?}>} fields — Frontmatter field definitions
+ *   core fields (project, tags, created, modified, summary) can't be removed by user.
+ *   User adds custom fields via Settings UI. Types: string, list, date, number.
+ *
+ * Brain internals (below fields line) are not in Settings UI but stored in config.json:
+ * @property {string} name — App/MCP server name
+ * @property {Object} api — Brain HTTP server { port, host }
+ * @property {Object} tts — TTS server { port, host }
+ * @property {string[]} skipLinkScan — Fields excluded from wikilink scanning
+ * @property {string[]} frontmatterHead — Fields ordered first in YAML output
+ * @property {string[]} frontmatterTail — Fields ordered last in YAML output
+ * @property {Object} embeddings — Embedding model config { model, dimensions, skipTags }
+ */
 const DEFAULTS = {
-  v: 1,
+  v: 3,
   vaultPath: '',
   guidelineName: 'HOME',
   normalizeTypography: false,
@@ -38,10 +56,28 @@ const DEFAULTS = {
   organize: {
     useOrganize: false,
     default: 'Input',
-    scopes: [],
-    noScopeRules: [],
+    // project key = value of entry.project field
+    // folder = base folder in vault for this project's entries
+    // rules = first-match rules for subfolders (tag prefix or field=value → folder)
+    projects: {
+      MP: {
+        folder: 'My Project',
+        rules: [
+          { tag: 'mp/doc', folder: 'My Project/Docs' },
+          { tag: 'mp/task', folder: 'My Project/Tasks' },
+          { field: 'status', value: 'done', folder: 'My Project/Archive' },
+        ],
+      },
+    },
+    // Fallback rules for entries without a matching project
+    rules: [
+      { tag: 'my/log', folder: 'Logs' },
+    ],
   },
+  // Field definitions: core fields are protected, user adds custom ones.
+  // type: string | list | date | number
   fields: [
+    { name: 'project',  type: 'string', desc: 'Project grouping',                      core: true },
     { name: 'tags',     type: 'list',   desc: 'Hierarchical categorization',           core: true },
     { name: 'created',  type: 'date',   desc: 'Auto-set on creation',                  core: true },
     { name: 'modified', type: 'date',   desc: 'Auto-updated on every write',           core: true },
@@ -54,13 +90,13 @@ const DEFAULTS = {
     { name: 'narrate',  type: 'string', desc: 'TTS collection name' },
   ],
 
-  // Brain internals (not editable via UI, but stored here for single source of truth)
-  name: 'brain-thing',
-  api: { port: 43000, host: '127.0.0.1' },
-  tts: { port: 42033, host: '127.0.0.1' },
-  skipLinkScan: ['tags', 'state', 'status', 'narrate'],
-  frontmatterHead: ['name', 'tags'],
-  frontmatterTail: ['created', 'modified', 'summary'],
+  // Brain internals — not editable via Settings UI, but stored in config.json
+  name: APP_NAME,
+  api: { port: 43000, host: '127.0.0.1' },   // Brain HTTP API
+  tts: { port: 42033, host: '127.0.0.1' },   // External TTS server
+  skipLinkScan: ['tags', 'state', 'status', 'narrate'],  // Fields excluded from wikilink detection
+  frontmatterHead: ['name', 'project', 'tags'],           // Top of YAML output
+  frontmatterTail: ['created', 'modified', 'summary'],    // Bottom of YAML output
   embeddings: { model: 'Xenova/multilingual-e5-large', dimensions: 1024, skipTags: [] },
 }
 
@@ -77,6 +113,7 @@ export const config = {
 
   // Resolved FieldType instances (built from fields array)
   _fields: {
+    project: FIELD.STRING.describe('Project grouping'),
     tags: FIELD.LIST.describe('Hierarchical categorization'),
     created: FIELD.DATE.describe('Auto-set on creation'),
     modified: FIELD.DATE.describe('Auto-updated on every write'),
@@ -111,8 +148,39 @@ function buildFields (arr = []) {
   return fields
 }
 
+function migrate (stored) {
+  if (!stored.v || stored.v < 2) {
+    // v1 → v2: scopes → projects
+    if (stored.organize?.scopes) {
+      const projects = {}
+      for (const scope of stored.organize.scopes) {
+        if (scope.name && scope.folder) projects[scope.name] = scope.folder
+      }
+      stored.organize.projects = projects
+      stored.organize.rules = stored.organize.noScopeRules || []
+      delete stored.organize.scopes
+      delete stored.organize.noScopeRules
+    }
+    stored.v = 2
+    save(stored)
+  }
+  if (stored.v < 3) {
+    // v2 → v3: flat projects map → { folder, rules }
+    if (stored.organize?.projects) {
+      for (const [key, val] of Object.entries(stored.organize.projects)) {
+        if (typeof val === 'string') {
+          stored.organize.projects[key] = { folder: val, rules: [] }
+        }
+      }
+    }
+    stored.v = 3
+    save(stored)
+  }
+}
+
 function applyConfig () {
   const stored = load()
+  migrate(stored)
   const merged = { ...DEFAULTS, ...stored }
 
   // Enforce core flags

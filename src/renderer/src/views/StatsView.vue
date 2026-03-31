@@ -8,6 +8,11 @@ const topFields = computed(() =>
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10),
 )
+
+const projectList = computed(() =>
+    Object.entries(state.projects.projects || {})
+        .sort((a, b) => b[1] - a[1]),
+)
 </script>
 
 <template>
@@ -40,16 +45,14 @@ const topFields = computed(() =>
       </div>
     </div>
 
-    <div v-if="state.scopes.scopes.length" class="scopes">
-      <div v-for="s in state.scopes.scopes" :key="s.name" class="scopes_item">
-        <h3 class="scopes_item-count">{{ s.count }}</h3>
-        <div class="scopes_item-name">{{ s.name }}</div>
-        <div class="scopes_item-summary">{{ s.summary || 'no summary' }}</div>
+    <div v-if="projectList.length" class="projects">
+      <div v-for="[name, count] in projectList" :key="name" class="projects_item">
+        <h3 class="projects_item-count">{{ count }}</h3>
+        <div class="projects_item-name">{{ name }}</div>
       </div>
-      <div v-if="state.scopes.unscoped" class="scopes_item _dim">
-        <h3 class="scopes_item-count">{{ state.scopes.unscoped }}</h3>
-        <div class="scopes_item-name">No Scope</div>
-        <div class="scopes_item-summary">Entries not matching any scope</div>
+      <div v-if="state.projects.noProject" class="projects_item _dim">
+        <h3 class="projects_item-count">{{ state.projects.noProject }}</h3>
+        <div class="projects_item-name">No Project</div>
       </div>
     </div>
 
@@ -129,13 +132,14 @@ const topFields = computed(() =>
   }
 }
 
-.scopes {
+
+.projects {
   display: flex;
   gap: var(--gap-sm);
   flex-wrap: wrap;
 
   &_item {
-    flex: 0 0 140px;
+    flex: 0 0 120px;
     padding: var(--gap-sm);
     border-radius: var(--radius-md);
     background: var(--bg-input);
@@ -155,16 +159,6 @@ const topFields = computed(() =>
       font-weight: 600;
       color: var(--text-soft);
       margin-top: var(--gap-xs);
-    }
-
-    &-summary {
-      font-size: var(--font-xs);
-      color: var(--text-dim);
-      margin-top: var(--gap-xs);
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
     }
   }
 }

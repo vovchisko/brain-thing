@@ -1,6 +1,5 @@
 import { store }      from '../modules/store.js'
 import { ApiError }   from '../lib/api.js'
-import { findScope }  from '../modules/organize.js'
 import { createBus }  from '../lib/bus.js'
 
 const bus = createBus('grep')
@@ -17,9 +16,9 @@ function countMatches (text, search) {
 /**
  * Literal text search across entries.
  * Searches name, content, and summary. Results grouped: title first, then content by match count.
- * @param {{ text: string, tags?: string[], scope?: string }} body
+ * @param {{ text: string, tags?: string[], project?: string }} body
  */
-export async function handleGrep ({ text, tags, scope }) {
+export async function handleGrep ({ text, tags, project }) {
   const ev = bus.op(`"${ text }"`)
   if (!text) {
     throw new ApiError(400, 'Missing required field: text')
@@ -34,8 +33,8 @@ export async function handleGrep ({ text, tags, scope }) {
     return false
   })
 
-  if (scope) {
-    matches = matches.filter(e => findScope(e)?.name === scope)
+  if (project) {
+    matches = matches.filter(e => e.project === project)
   }
 
   if (tags && tags.length > 0) {

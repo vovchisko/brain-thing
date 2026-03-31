@@ -77,7 +77,7 @@ const active = ref('general')
       display: flex;
       flex-direction: column;
       gap: 2em;
-      max-width: 640px;
+      max-width: 900px;
     }
   }
 }

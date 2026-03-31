@@ -22,10 +22,11 @@ export async function handleCreate ({ name, content, tags, ...rest }) {
 
   const props = { ...rest, tags }
 
-  const ev = bus.op(name, tags.join(', '))
+  const meta = [tags[0], rest.project].filter(Boolean).join(', ')
+  const ev = bus.op(name, meta)
   try {
     await obsidian.createFile(name, content, props)
-    ev.ok(`created (${ tags.join(', ') })`)
+    ev.ok('created')
     return { text: `Created "${ name }"` }
   } catch (err) {
     if (err.message?.includes('already exists')) {

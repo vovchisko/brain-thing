@@ -1,22 +1,21 @@
 import { store }       from '../modules/store.js'
 import { config }      from '../config.js'
 import { diagnostics } from '../modules/diagnostics.js'
-import { findScope }   from '../modules/organize.js'
 import { createBus }   from '../lib/bus.js'
 
 const bus = createBus('diagnostic')
 
 /**
  * Report all entries with issues, grouped by category.
- * @param {{ category?: string, scope?: string, tag?: string }} body
+ * @param {{ category?: string, project?: string, tags?: string[] }} body
  */
-export async function handleDiagnostic ({ category, scope, tags } = {}) {
-  const filter = category || scope || (tags?.length ? tags.join(', ') : null) || 'all'
+export async function handleDiagnostic ({ category, project, tags } = {}) {
+  const filter = category || project || (tags?.length ? tags.join(', ') : null) || 'all'
   const ev = bus.op(filter)
   diagnostics.checkAll()
   let entries = [ ...store.entries ].filter(e => e.issues.size > 0)
 
-  if (scope) entries = entries.filter(e => findScope(e)?.name === scope)
+  if (project) entries = entries.filter(e => e.project === project)
   if (tags?.length) entries = entries.filter(e =>
     tags.some(tag => e.tags?.some(t => t === tag || t.startsWith(tag + '/')))
   )

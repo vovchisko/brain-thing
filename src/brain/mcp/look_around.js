@@ -1,4 +1,4 @@
-import { TOOLS } from '../config.js'
+import { TOOLS } from '../../shared/constants.js'
 
 export const tool = {
   name: TOOLS.LOOK_AROUND,
@@ -6,18 +6,18 @@ export const tool = {
 
 Returns:
 - Total entry count
-- Scopes with entry counts and matching rules
+- Projects with entry counts
 - All tags with entry counts
 - Guidelines for working with this knowledge base (if available)
 
 Usage:
 - Call without parameters
-- Helps understand scope and structure before diving in
-- Use returned scope/tag names for filtering in other tools`,
+- Helps understand projects and structure before diving in
+- Use returned project/tag names for filtering in other tools`,
   inputSchema: {
     type: 'object',
     properties: {},
   },
 }
 
-export const route = { method: 'GET', path: TOOLS.LOOK_AROUND }
+export const route = { method: 'POST', path: TOOLS.LOOK_AROUND }

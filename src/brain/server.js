@@ -1,6 +1,7 @@
-import { config, TOOLS }           from './config.js'
+import { dirname }                 from 'path'
+import { fileURLToPath }           from 'url'
+import { config, init, TOOLS }     from './config.js'
 import { createBus }               from './lib/bus.js'
-import { findScope }               from './modules/organize.js'
 
 import * as mcpGet        from './mcp/get.js'
 import * as mcpWhatIs     from './mcp/what_is.js'
@@ -31,7 +32,7 @@ export const server = {
   onEntries: null,
   onIssues: null,
   onFields: null,
-  onScopes: null,
+  onProjects: null,
   onLiveCount: null,
 }
 
@@ -65,29 +66,17 @@ function pushFields () {
   if (server.onFields) server.onFields(counts)
 }
 
-function pushScopes () {
-  if (!server.onScopes || !_store) return
-  const scopeCounts = {}
-  const scopes = config.organize?.scopes || []
-  let unscoped = 0
-
+function pushProjects () {
+  if (!server.onProjects || !_store) return
+  const counts = {}
+  let noProject = 0
   for (const entry of _store.entries) {
-    const scope = findScope(entry)
-    if (scope) scopeCounts[scope.name] = (scopeCounts[scope.name] || 0) + 1
-    else unscoped++
+    if (entry.project) counts[entry.project] = (counts[entry.project] || 0) + 1
+    else noProject++
   }
-
-  const result = scopes.map(s => {
-    const doc = _store.entries.get(s.name)
-    return {
-      name: s.name,
-      count: scopeCounts[s.name] || 0,
-      summary: doc?.summary || null,
-    }
-  })
-
-  server.onScopes({ scopes: result, unscoped })
+  server.onProjects({ projects: counts, noProject })
 }
+
 
 function status (phase, extra) {
   if (server.onStatus) server.onStatus(extra ? { phase, ...extra } : { phase })
@@ -106,7 +95,11 @@ function stopLiveCounter () {
   if (liveTimer) { clearInterval(liveTimer); liveTimer = null }
 }
 
-export async function start () {
+export async function start (dataDir) {
+  if (dataDir) {
+    init(dataDir)
+    if (!config.brainDir) config.brainDir = dirname(fileURLToPath(import.meta.url))
+  }
   if (!config.vault) {
     bus.warn('start', 'No vault path configured, server not started')
     return null
@@ -168,7 +161,7 @@ export async function start () {
   }
   fastify.post(`/${ TOOLS.DIAGNOSTIC }`, wrap('diagnostic', handleDiagnostic))
 
-  fastify.get('/status', async () => ({ entries: store.entries.size, vault: config.vault }))
+  fastify.get('/status', async () => ({ name: config.name, entries: store.entries.size, vault: config.vault }))
   fastify.get('/tools', async () => {
     const tools = ALL_MCP.filter(m => !m.feature || config.features[m.feature]).map(m => m.tool)
     bus.info(`MCP requested tools (${ tools.length })`)
@@ -182,7 +175,7 @@ export async function start () {
     pushEntries()
     pushIssues()
     pushFields()
-    pushScopes()
+    pushProjects()
   }
 
   status('startup')
@@ -216,7 +209,7 @@ export async function start () {
   pushEntries()
   pushIssues()
   pushFields()
-  pushScopes()
+  pushProjects()
 
   await fastify.listen({ port: config.api.port, host: config.api.host })
   bus.info('start', `Ready: ${ store.entries.size } entries @ http://${ config.api.host }:${ config.api.port }`)
@@ -252,7 +245,7 @@ export async function hotSwap () {
   pushEntries()
   pushIssues()
   pushFields()
-  pushScopes()
+  pushProjects()
 
   bus.info('swap', `Complete: ${ _store.entries.size } entries`)
 }

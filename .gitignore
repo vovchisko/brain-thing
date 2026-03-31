@@ -1,6 +1,7 @@
 node_modules
 dist
 out
+_test-env
 .DS_Store
 *.log*
 CLAUDE.md

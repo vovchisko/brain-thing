@@ -1,7 +1,6 @@
 # Brain Thing
 
-Personal knowledge base with MCP integration, wrapped in Electron.цфф
-
+Personal knowledge base with MCP integration, wrapped in Electron.
 ## Setup
 
 ```bash
