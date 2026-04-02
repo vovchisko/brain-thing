@@ -2,9 +2,13 @@
 
 A local knowledge base that connects your markdown notes to AI assistants via [MCP](https://modelcontextprotocol.io/).
 
-You write in Obsidian (or any markdown editor). Brain Thing indexes your vault, builds semantic embeddings, and gives Claude direct access to search, read, create, and organize your entries — without uploading anything to the cloud.
+You write in Obsidian (or any markdown editor). Brain Thing indexes your vault, builds semantic embeddings, and gives Claude direct access to search, read, create, and organise your entries — without uploading anything to the cloud.
 
 Edit a note in Obsidian — Claude sees it in seconds. Create an entry through Claude — it appears in Obsidian immediately. Same `.md` files, no sync layer.
+
+> 🖐️ Hold on!
+>
+> This tool emerged as something I used for myself, and wasn't tested on Mac or Win 11, so in case of any issues, don't be shy - report it https://github.com/vovchisko/brain-thing/issues
 
 ## Features
 
@@ -18,7 +22,7 @@ Edit a note in Obsidian — Claude sees it in seconds. Create an entry through C
 
 🔗 **Backlinks** — when Claude reads an entry, it sees which other entries reference it. Relationship graph without reading the whole vault.
 
-📂 **Auto-organize** — map projects and tags to folders. The AI creates an entry → Brain Thing puts the file where it belongs. Obsidian sees the same folder structure.
+📂 **Auto-organise** — map projects and tags to folders. The AI creates an entry → Brain Thing puts the file where it belongs. Obsidian sees the same folder structure.
 
 🩺 **Diagnostics** — broken links, missing summaries, health checks — all as a tool call.
 
@@ -59,7 +63,7 @@ You can also define custom fields (string, number, date, list) in **Settings →
 
 By default, new files are created in your vault root. To auto-sort them into folders:
 
-**Settings → Organize** lets you map projects to folders (`Novel` → `Novel/`, `Work` → `Work/Notes/`) and add rules per project — for example, entries tagged `novel/chapter` go to `Chapters/`, entries with `status: done` go to `Archive/`. There's also a fallback for entries without a project.
+**Settings → Organise** lets you map projects to folders (`Novel` → `Novel/`, `Work` → `Work/Notes/`) and add rules per project — for example, entries tagged `novel/chapter` go to `Chapters/`, entries with `status: done` go to `Archive/`. There's also a fallback for entries without a project.
 
 This is purely file management. The AI works with entry names, not file paths.
 
@@ -67,7 +71,7 @@ This is purely file management. The AI works with entry names, not file paths.
 
 Brain Thing watches your vault folder for changes. Both directions are live:
 
-- Create/Edit in Obsidian → AI sees the update right the way
+- Create/Edit in Obsidian → AI sees the update right away
 - Create/Edit through Claude → file appears in Obsidian immediately
 - Rename updates all `[[wikilinks]]` across the vault, same as Obsidian does
 
@@ -111,7 +115,7 @@ Brain Thing runs as a standalone desktop app with its own HTTP server. The embed
 
 **Experimental:**
 
-`narrate` — text-to-speech chunking. Under development; requires a custom XTTS v2 setup. Soon I will find more friendly way to set it up or at lest share my setup when it be somewhat stable.
+`narrate` — text-to-speech chunking. Under development; requires a custom XTTS v2 setup. Soon I will find a more friendly way to set it up or at least share my setup when it is somewhat stable.
 
 ### Data Format
 
