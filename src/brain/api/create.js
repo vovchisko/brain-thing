@@ -1,7 +1,8 @@
-import { obsidian }     from '../modules/obsidian.js'
-import { validateName } from '../lib/utils.js'
-import { ApiError }     from '../lib/api.js'
-import { createBus }    from '../lib/bus.js'
+import { obsidian }                from '../modules/obsidian.js'
+import { validateName }            from '../lib/utils.js'
+import { ApiError }                from '../lib/api.js'
+import { findEntry, markSeen }     from './_helpers.js'
+import { createBus }               from '../lib/bus.js'
 
 const bus = createBus('create')
 
@@ -26,6 +27,7 @@ export async function handleCreate ({ name, content, tags, ...rest }) {
   const ev = bus.op(name, meta)
   try {
     await obsidian.createFile(name, content, props)
+    markSeen(findEntry(name))
     ev.ok('created')
     return { text: `Created "${ name }"` }
   } catch (err) {

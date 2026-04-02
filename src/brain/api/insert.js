@@ -1,7 +1,7 @@
 import { obsidian }                        from '../modules/obsidian.js'
 import { stripBrackets }                   from '../lib/utils.js'
 import { ApiError }                        from '../lib/api.js'
-import { entryNotFoundMessage, findEntry } from './_helpers.js'
+import { entryNotFoundMessage, findEntry, checkStale, markSeen } from './_helpers.js'
 import { createBus }                       from '../lib/bus.js'
 
 const bus = createBus('insert')
@@ -33,6 +33,9 @@ export async function handleInsert ({ name, text, marker, position }) {
     return { text: await entryNotFoundMessage(cleanName) }
   }
 
+  const stale = checkStale(entry)
+  if (stale) { ev.warn('stale'); return { text: stale } }
+
   let newContent
 
   if (marker) {
@@ -63,6 +66,7 @@ export async function handleInsert ({ name, text, marker, position }) {
   }
 
   await obsidian.updateFile(entry, newContent)
+  markSeen(findEntry(entry.name))
 
   const label = marker ? `${ pos } "${ truncate(marker) }"` : pos === 'start' ? 'at start' : 'at end'
   ev.ok(`inserted ${ label }`)

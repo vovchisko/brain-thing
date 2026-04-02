@@ -1,5 +1,5 @@
 import { store }       from '../modules/store.js'
-import { formatEntry } from './_helpers.js'
+import { formatEntry, markSeen } from './_helpers.js'
 import { createBus }   from '../lib/bus.js'
 
 const bus = createBus('what_is')
@@ -42,6 +42,7 @@ export async function handleWhatIs ({ query, tags, project }) {
   const exact = store.entries.get(query)
   if (exact) {
     ev.ok(`exact match: ${ exact.name }`)
+    markSeen(exact)
     let response = formatEntry(exact)
     const backlinks = store.findBacklinks(exact.name)
     if (backlinks && backlinks.length > 0) {
@@ -94,6 +95,7 @@ export async function handleWhatIs ({ query, tags, project }) {
   }
 
   // High confidence match - show full entry as frontmatter + content
+  markSeen(top.entity)
   let response = formatEntry(top.entity)
 
   const backlinks = store.findBacklinks(top.entity.name)

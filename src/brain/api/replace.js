@@ -1,6 +1,6 @@
 import { obsidian }                        from '../modules/obsidian.js'
 import { ApiError }                        from '../lib/api.js'
-import { entryNotFoundMessage, findEntry } from './_helpers.js'
+import { entryNotFoundMessage, findEntry, checkStale, markSeen } from './_helpers.js'
 import { createBus }                       from '../lib/bus.js'
 
 const bus = createBus('replace')
@@ -47,6 +47,9 @@ export async function handleReplace ({ name, old_string, new_string, replace_all
     return { text: await entryNotFoundMessage(name) }
   }
 
+  const stale = checkStale(entry)
+  if (stale) { ev.warn('stale'); return { text: stale } }
+
   // Validate all operations first
   const errors = []
   const validated = []
@@ -86,6 +89,7 @@ export async function handleReplace ({ name, old_string, new_string, replace_all
   }
 
   await obsidian.updateFile(entry, content)
+  markSeen(findEntry(name))
 
   const summary = results.length === 1
       ? `Replaced: ${ results[0] }`

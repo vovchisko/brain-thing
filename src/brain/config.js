@@ -16,7 +16,6 @@ const TYPE_MAP = { string: FIELD.STRING, date: FIELD.DATE, number: FIELD.NUMBER,
  * @property {number} v — Config schema version (for migrations)
  * @property {string} vaultPath — Absolute path to Obsidian vault
  * @property {string} guidelineName — Entry name whose content is appended to look_around output
- * @property {boolean} normalizeTypography — Replace curly quotes/dashes with ASCII on import
  * @property {boolean} verboseConsole — Show system events in UI log panel (frontend-only filter)
  * @property {Object} features — Feature gates (e.g. tts)
  * @property {Object} ignore — Vault scan exclusions
@@ -46,7 +45,6 @@ const DEFAULTS = {
   v: 3,
   vaultPath: '',
   guidelineName: 'HOME',
-  normalizeTypography: false,
   verboseConsole: false,
   features: { tts: false },
   ignore: {
@@ -63,9 +61,9 @@ const DEFAULTS = {
       MP: {
         folder: 'My Project',
         rules: [
-          { tag: 'mp/doc', folder: 'My Project/Docs' },
-          { tag: 'mp/task', folder: 'My Project/Tasks' },
-          { field: 'status', value: 'done', folder: 'My Project/Archive' },
+          { tag: 'mp/doc', folder: 'Docs' },
+          { tag: 'mp/task', folder: 'Tasks' },
+          { field: 'status', value: 'done', folder: 'Archive' },
         ],
       },
     },
@@ -194,7 +192,6 @@ function applyConfig () {
   config.vaultPath = merged.vaultPath
   config.vault = merged.vaultPath || null
   config.guideline = merged.guidelineName
-  config.normalizeTypography = merged.normalizeTypography
   config.features = merged.features
   config.ignore = merged.ignore
   config.organize = merged.organize

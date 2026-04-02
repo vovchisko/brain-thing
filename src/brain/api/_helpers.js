@@ -6,6 +6,25 @@ import { orderKeys } from '../lib/utils.js'
 const HIDDEN_FIELDS = new Set([ 'source_file', 'content_hash', 'content' ])
 const LOG_SKIP = new Set([ 'name', 'source_file', 'content_hash', 'content', 'created', 'modified', 'summary', 'aliases' ])
 
+/**
+ * Tracks content_hash at the time AI last read an entry.
+ * Write tools check this to reject stale mutations.
+ */
+const seenHashes = new Map()
+
+/** Mark entry as seen by AI (call from read tools: get, what_is) */
+export function markSeen (entry) {
+  if (entry?.content_hash) seenHashes.set(entry.name, entry.content_hash)
+}
+
+/** Check if entry changed since AI last read it. Returns error message or null. */
+export function checkStale (entry) {
+  const seen = seenHashes.get(entry.name)
+  if (!seen) return `Entry "${ entry.name }" must be read with "get" before modifying.`
+  if (seen !== entry.content_hash) return `Entry "${ entry.name }" was modified externally since you last read it. Use "get" to see current version before editing.`
+  return null
+}
+
 /** Short props string for bus log: project, tags, custom fields */
 export function entryProps (entry) {
   const parts = []

@@ -52,18 +52,6 @@ export function debounce (fn, delay) {
   }
 }
 
-/**
- * Normalize fancy typography to plain ASCII.
- * @param {string} str
- */
-export function normalizeTypography (str) {
-  return str
-      .replace(/[""„«»]/g, '"')  // curly/fancy double → straight
-      .replace(/[''‚‹›]/g, '\'') // curly/fancy single → straight
-      .replace(/…/g, '...')      // ellipsis → three dots
-      .replace(/–/g, '-')        // en dash → hyphen
-      .replace(/—/g, '-')        // em dash → hyphen
-}
 
 /** Order object keys: head → ...rest → tail */
 export function orderKeys (obj, head = [], tail = []) {

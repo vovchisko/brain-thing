@@ -1,6 +1,6 @@
 import { obsidian }                        from '../modules/obsidian.js'
 import { ApiError }                        from '../lib/api.js'
-import { entryNotFoundMessage, findEntry } from './_helpers.js'
+import { entryNotFoundMessage, findEntry, checkStale, markSeen } from './_helpers.js'
 import { createBus }                       from '../lib/bus.js'
 
 const bus = createBus('update')
@@ -46,6 +46,9 @@ export async function handleUpdate ({ name, fields }) {
     return { text: await entryNotFoundMessage(name) }
   }
 
+  const stale = checkStale(entry)
+  if (stale) { ev.warn('stale'); return { text: stale } }
+
   const updatedProps = {}
   let newContent = null
 
@@ -60,6 +63,7 @@ export async function handleUpdate ({ name, fields }) {
   const content = newContent !== null ? newContent : entry.content
 
   await obsidian.updateFile(entry, content, updatedProps)
+  markSeen(findEntry(name))
   ev.ok(`updated (${ fieldNames })`)
   return { text: `Updated "${ name }" (${ fieldNames })` }
 }

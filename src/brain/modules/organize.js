@@ -15,7 +15,7 @@ export function resolveFolder (entry) {
     const proj = org.projects?.[entry.project]
     if (proj) {
       for (const rule of proj.rules || []) {
-        if (matchRule(entry, rule)) return rule.folder
+        if (matchRule(entry, rule)) return path.join(proj.folder, rule.folder)
       }
       return proj.folder
     }

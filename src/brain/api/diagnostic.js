@@ -1,5 +1,4 @@
 import { store }       from '../modules/store.js'
-import { config }      from '../config.js'
 import { diagnostics } from '../modules/diagnostics.js'
 import { createBus }   from '../lib/bus.js'
 
@@ -59,9 +58,6 @@ export async function handleDiagnostic ({ category, project, tags } = {}) {
                 '- Oversized chunks just need shorter sentences - no need to restructure paragraphs.\n' +
                 '- Inline dialogue like `she said, "text"` works better with a dash instead of comma: `she said - "text"`.\n' +
                 '- Double-Quotes are stripped during synthesis automatically, so can be ignored during analysis.\n'
-    if (config.normalizeTypography) {
-      response += '> Note: Typography normalization is ON — all dashes are normalized to `-` across all docs.\n'
-    }
   }
 
   ev.ok(`${ total } entries with issues`)

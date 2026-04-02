@@ -21,28 +21,34 @@ export async function handleLookAround () {
   bus.info(`${ store.entries.size } entries, ${ projectList.length } projects`)
 
   let result = `# ${ config.name }\n\n`
-  result += `Total: ${ store.entries.size } entries\n`
-  if (config.normalizeTypography) {
-    result += `> Typography normalization is ON — all dashes are normalized to \`-\` across all docs.\n`
+
+  // Guideline first
+  const guidelineName = config.guideline
+  if (guidelineName) {
+    const entry = store.entries.get(guidelineName)
+    if (entry) {
+      result += `${ entry.content }\n\n`
+    } else {
+      result += `Guideline entry "${ guidelineName }" not found. Create it to provide working instructions for this knowledge base.\n\n`
+    }
   }
-  result += '\n'
+
+  // Vault overview
+  result += `Total: ${ store.entries.size } entries\n\n`
 
   // Projects
   if (projectList.some(([name]) => name !== '(no project)')) {
-    result += `> Use { project: "Name" } with search, grep, what_is, fields, diagnostic to filter by project.\n\n`
-
     for (const [name, count] of projectList) {
       if (name === '(no project)') continue
       const doc = store.entries.get(name)
       result += `## ${ name } (${ count } entries)\n`
       if (doc?.summary) result += `${ doc.summary }\n`
-      result += `\`{ project: "${ name }" }\`\n`
       if (doc) result += `Details: [[${ name }]]\n`
       result += '\n'
     }
 
-    const unscoped = projectCounts.get('(no project)') || 0
-    if (unscoped) result += `(no project): ${ unscoped } entries\n\n`
+    const noProj = projectCounts.get('(no project)') || 0
+    if (noProj) result += `(no project): ${ noProj } entries\n\n`
   }
 
   // Tags
@@ -52,16 +58,9 @@ export async function handleLookAround () {
     result += `- ${ name } - ${ count }\n`
   }
 
-  // Guideline
-  const guidelineName = config.guideline
-  if (guidelineName) {
-    const entry = store.entries.get(guidelineName)
-    if (entry) {
-      result += `\n${ entry.content }`
-    } else {
-      result += `\n\nGuideline entry "${ guidelineName }" not found. Create it to provide working instructions for this knowledge base.`
-    }
-  }
+  // Filter instructions last
+  result += `\n> Use { project: "Name" } with search, grep, what_is, fields, diagnostic to filter by project.`
+  result += `\n> Use { tags: ["prefix"] } for tag-based filtering (prefix match).`
 
   return { text: result.trimEnd() }
 }

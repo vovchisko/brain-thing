@@ -6,10 +6,11 @@ import { store }                                                    from './stor
 import { embeddings }                                               from './embeddings.js'
 import { createBus }                                                from '../lib/bus.js'
 import { config }                                                   from '../config.js'
-import { formatDate, normalizeTypography, orderKeys, shouldIgnore } from '../lib/utils.js'
+import { formatDate, orderKeys, shouldIgnore }                     from '../lib/utils.js'
 import { needsMove, resolveFolder }                                 from './organize.js'
 
 const bus = createBus('obsidian', { system: true })
+
 
 function coerceFields (data) {
   for (const [ name, type ] of Object.entries(config.fields)) {
@@ -140,8 +141,7 @@ async function generateVector (entry) {
  * @param {string} filePath
  */
 async function importFile (filePath) {
-  const raw = await fs.readFile(filePath, 'utf-8')
-  const text = config.normalizeTypography ? normalizeTypography(raw) : raw
+  const text = await fs.readFile(filePath, 'utf-8')
   const parsed = parseFrontmatter(text)
 
   if (!parsed) {
@@ -162,9 +162,15 @@ async function importFile (filePath) {
   importedFiles.add(filePath)
   filenameCache.set(path.basename(filePath), filePath)
 
-  // Skip if content unchanged
-  const existing = store.entries.find(e => e.source_file === filePath)
-  if (existing && existing.content_hash === fileHash) return
+  // Skip if content unchanged (matches by name — survives file moves)
+  const existing = store.entries.get(fileName)
+  if (existing && existing.content_hash === fileHash) {
+    if (existing.source_file !== filePath) {
+      existing.source_file = filePath
+      importedFiles.add(filePath)
+    }
+    return
+  }
 
   bus.info('import', `+ ${ fileName }`)
 
@@ -282,7 +288,6 @@ async function updateFile (entry, content, updatedProps = {}) {
   const fileContent = serializeFrontmatter(frontmatter, content)
   await fs.writeFile(filePath, fileContent, 'utf-8')
 
-  // Re-import immediately so store is updated
   await importFile(filePath)
   await organizeFile(entry.name)
 

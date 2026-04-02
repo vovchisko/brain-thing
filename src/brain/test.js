@@ -17,6 +17,8 @@ function assert (cond, msg) {
   console.log(`  ok: ${ msg }`)
 }
 
+function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+
 async function post (path, body = {}) {
   const res = await fastify.inject({ method: 'POST', url: `/${ path }`, payload: body })
   return { status: res.statusCode, data: JSON.parse(res.payload) }
@@ -39,7 +41,22 @@ function seedVault () {
     api: { port: 0, host: '127.0.0.1' },
     features: { tts: false },
     ignore: { folders: [], patterns: [] },
-    organize: { useOrganize: true, default: 'Input', projects: { TestProject: { folder: 'TestProject', rules: [] } }, rules: [] },
+    organize: {
+      useOrganize: true,
+      default: 'Input',
+      projects: {
+        TestProject: {
+          folder: 'TestProject',
+          rules: [
+            { tag: 'test/docs', folder: 'Docs' },
+            { field: 'status', value: 'done', folder: 'Archive' },
+          ],
+        },
+      },
+      rules: [
+        { tag: 'logs', folder: 'Logs' },
+      ],
+    },
     fields: [
       { name: 'project', type: 'string', desc: 'Project', core: true },
       { name: 'tags', type: 'list', desc: 'Tags', core: true },
@@ -86,7 +103,7 @@ async function run () {
     console.log(`\n--- ${ file.replace('.js', '') } ---`)
     try {
       const mod = await import(`./test/${ file }`)
-      await mod.default({ post, get, assert })
+      await mod.default({ post, get, assert, sleep, VAULT })
       passed++
     } catch (err) {
       console.error(`  FAIL: ${ err.message }`)
