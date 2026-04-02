@@ -9,6 +9,7 @@ Edit a note in Obsidian — Claude sees it in seconds. Create an entry through C
 > 🖐️ Hold on!
 >
 > This tool emerged as something I used for myself, and wasn't tested on Mac or Win 11, so in case of any issues, don't be shy - report it https://github.com/vovchisko/brain-thing/issues
+> And indeed make a backup of your Obsidian Vault, if you use it.
 
 ## Features
 
