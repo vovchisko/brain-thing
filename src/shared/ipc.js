@@ -19,4 +19,6 @@ export const IPC = {
   MCP_STATUS: 'mcp:status',
   MCP_REGISTER: 'mcp:register',
   MCP_UNREGISTER: 'mcp:unregister',
+  AUTOSTART_GET: 'autostart:get',
+  AUTOSTART_SET: 'autostart:set',
 }

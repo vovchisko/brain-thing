@@ -45,6 +45,7 @@ const DEFAULTS = {
   v: 3,
   vaultPath: '',
   guidelineName: 'HOME',
+  startMinimized: false,
   verboseConsole: false,
   features: { tts: false },
   ignore: {

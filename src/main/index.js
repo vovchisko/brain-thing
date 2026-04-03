@@ -170,6 +170,10 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.MCP_REGISTER, async () => (await reg).register())
   ipcMain.handle(IPC.MCP_UNREGISTER, async () => (await reg).unregister())
 
+  // Autostart
+  ipcMain.handle(IPC.AUTOSTART_GET, () => !is.dev && app.getLoginItemSettings().openAtLogin)
+  ipcMain.handle(IPC.AUTOSTART_SET, (_e, v) => { if (!is.dev) app.setLoginItemSettings({ openAtLogin: v }) })
+
   ipcMain.handle(IPC.PICK_FOLDER, async () => {
     const win = mainWindow || BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
@@ -177,7 +181,11 @@ app.whenReady().then(() => {
   })
 
   createTray(icon, createWindow)
-  createWindow()
+  if (!is.dev && getConfig().startMinimized) {
+    // Start in tray only — tray click will create window
+  } else {
+    createWindow()
+  }
 
   start().catch((err) => {
     console.error('[brain] Failed to start:', err.message)

@@ -27,6 +27,10 @@ const api = {
     register: () => ipcRenderer.invoke(IPC.MCP_REGISTER),
     unregister: () => ipcRenderer.invoke(IPC.MCP_UNREGISTER),
   },
+  autostart: {
+    get: () => ipcRenderer.invoke(IPC.AUTOSTART_GET),
+    set: (v) => ipcRenderer.invoke(IPC.AUTOSTART_SET, v),
+  },
   pickFolder: () => ipcRenderer.invoke(IPC.PICK_FOLDER),
   isDirectory: (p) => ipcRenderer.invoke(IPC.FS_IS_DIR, p),
   isEmpty: (p) => ipcRenderer.invoke(IPC.FS_IS_EMPTY, p),

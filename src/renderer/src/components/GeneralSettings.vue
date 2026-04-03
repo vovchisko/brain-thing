@@ -5,9 +5,14 @@ import FolderPicker        from './FolderPicker.vue'
 import GuidelineName       from './GuidelineName.vue'
 
 const mcpStatus = ref([])
+const openAtLogin = ref(false)
+const startMinimized = ref(false)
 
 onMounted(async () => {
   mcpStatus.value = await window.api.mcp.status()
+  openAtLogin.value = await window.api.autostart.get()
+  const cfg = await window.api.config.get()
+  startMinimized.value = cfg.startMinimized || false
 })
 
 const mcpRegistered = computed(() => mcpStatus.value.some(c => c.registered))
@@ -21,6 +26,16 @@ async function toggleMcp () {
   const failed = results.filter(r => !r.ok)
   if (failed.length) mcpError.value = failed.map(r => `${ r.label }: ${ r.error }`).join('; ')
   mcpStatus.value = await window.api.mcp.status()
+}
+
+async function toggleAutostart () {
+  openAtLogin.value = !openAtLogin.value
+  await window.api.autostart.set(openAtLogin.value)
+}
+
+async function toggleStartMinimized () {
+  startMinimized.value = !startMinimized.value
+  await window.api.config.set({ startMinimized: startMinimized.value })
 }
 
 async function toggleVerbose () {
@@ -46,6 +61,24 @@ async function toggleVerbose () {
     </div>
     <button class="g-btn general_row_toggle" :class="{ _on: mcpRegistered }" @click="toggleMcp">
       {{ mcpRegistered ? 'ON' : 'OFF' }}
+    </button>
+  </div>
+  <div class="general_row">
+    <div>
+      <div class="general_row_name">Start with system</div>
+      <div class="g-hint">Launch Brain Thing when you log in.</div>
+    </div>
+    <button class="g-btn general_row_toggle" :class="{ _on: openAtLogin }" @click="toggleAutostart">
+      {{ openAtLogin ? 'ON' : 'OFF' }}
+    </button>
+  </div>
+  <div class="general_row">
+    <div>
+      <div class="general_row_name">Start minimized</div>
+      <div class="g-hint">Start in system tray without opening the window.</div>
+    </div>
+    <button class="g-btn general_row_toggle" :class="{ _on: startMinimized }" @click="toggleStartMinimized">
+      {{ startMinimized ? 'ON' : 'OFF' }}
     </button>
   </div>
   <div class="general_row">
