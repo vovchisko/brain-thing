@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { settings } from './state.js'
 
 const folder = ref('')
 const current = ref('')
@@ -11,15 +12,11 @@ const oldHasFiles = ref(false)
 const dirty = computed(() => folder.value && folder.value !== current.value)
 const hasCurrentVault = computed(() => !!current.value)
 
-onMounted(async () => {
-  const cfg = await window.api.config.get()
-  if (cfg.vaultPath) {
-    folder.value = cfg.vaultPath
-    current.value = cfg.vaultPath
-  }
-})
+watch(() => settings.config.value?.vaultPath, (v) => {
+  if (v) { folder.value = v; current.value = v }
+}, { immediate: true })
 
-async function browse() {
+async function browse () {
   const picked = await window.api.pickFolder()
   if (picked) {
     folder.value = picked
@@ -29,17 +26,17 @@ async function browse() {
   }
 }
 
-function onInput() {
+function onInput () {
   error.value = ''
   saved.value = false
 }
 
-async function checkOldVault() {
+async function checkOldVault () {
   if (!current.value) { oldHasFiles.value = false; return }
   oldHasFiles.value = !(await window.api.isEmpty(current.value))
 }
 
-async function apply() {
+async function apply () {
   if (!folder.value) return
   error.value = ''
   const isDir = await window.api.isDirectory(folder.value)
@@ -47,7 +44,7 @@ async function apply() {
   await applyFolder(folder.value)
 }
 
-async function move() {
+async function move () {
   if (!folder.value || !current.value) return
   error.value = ''
   const isDir = await window.api.isDirectory(folder.value)
@@ -61,18 +58,15 @@ async function move() {
   moving.value = false
 }
 
-async function applyFolder(path) {
-  await window.api.config.set({ vaultPath: path })
-  folder.value = path
-  current.value = path
+async function applyFolder (path) {
+  await settings.saveAndSwap({ vaultPath: path })
   oldHasFiles.value = false
   saved.value = true
   error.value = ''
-  window.api.brainSwap()
   setTimeout(() => (saved.value = false), 1500)
 }
 
-function cancel() {
+function cancel () {
   folder.value = current.value
   error.value = ''
   saved.value = false

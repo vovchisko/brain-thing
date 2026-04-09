@@ -17,4 +17,5 @@ export const TOOLS = Object.freeze({
   SEARCH: 'search',
   NARRATE: 'narrate',
   DIAGNOSTIC: 'diagnostic',
+  PROJECT_CONFIG: 'project_config',
 })

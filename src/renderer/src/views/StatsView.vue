@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { state }    from '../state'
+import { state }    from '../state.js'
 import LogPanel     from '../components/LogPanel.vue'
 
 const topFields = computed(() =>

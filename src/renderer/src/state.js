@@ -1,6 +1,6 @@
 import { reactive, ref } from 'vue'
-import { STATUS }                    from '../../shared/status'
-import { LOG_BUFFER_SIZE }           from '../../shared/constants'
+import { STATUS }                    from '../../shared/status.js'
+import { LOG_BUFFER_SIZE }           from '../../shared/constants.js'
 
 export const state = reactive({
   status: { phase: STATUS.IDLE },

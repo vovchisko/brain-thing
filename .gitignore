@@ -1,7 +1,9 @@
-node_modules
-dist
-out
-_test-env
+node_modules/
+dist/
+out/
+build/
+.idea/
+_test-env/
 .DS_Store
 *.log*
 CLAUDE.md

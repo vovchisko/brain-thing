@@ -1,52 +1,44 @@
-import { join }                                                from 'path'
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
-import { FIELD }                                               from './lib/field-types.js'
-import { APP_NAME, TOOLS }                                     from '../shared/constants.js'
+import { join }                                                          from 'path'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, watch, writeFileSync } from 'fs'
+import crypto                                                            from 'node:crypto'
+import Signal                                                            from 'a-signal'
+import { FIELD }                                                         from './lib/field-types.js'
+import { APP_NAME, TOOLS }                                               from '../shared/constants.js'
 
 export { TOOLS }
 
 const CORE_FIELD_NAMES = new Set(['project', 'tags', 'created', 'modified', 'summary'])
-
 const TYPE_MAP = { string: FIELD.STRING, date: FIELD.DATE, number: FIELD.NUMBER, list: FIELD.LIST }
 
+const BRAIN_DIR = '.brain-thing'
+
+/** Keys stored in vault settings (synced across machines) */
+const VAULT_KEYS = new Set(['fields', 'ignore', 'organize', 'features', 'guidelineName'])
+
 /**
- * Default config. Written to config.json on first start.
- * User edits via Settings UI or manually in config.json.
- *
- * @property {number} v — Config schema version (for migrations)
- * @property {string} vaultPath — Absolute path to Obsidian vault
- * @property {string} guidelineName — Entry name whose content is appended to look_around output
- * @property {boolean} verboseConsole — Show system events in UI log panel (frontend-only filter)
- * @property {Object} features — Feature gates (e.g. tts)
- * @property {Object} ignore — Vault scan exclusions
- * @property {string[]} ignore.folders — Folder names to skip entirely
- * @property {string[]} ignore.patterns — Filename substrings to skip (case-insensitive)
- * @property {Object} organize — File auto-organization settings
- * @property {boolean} organize.useOrganize — Master toggle
- * @property {string} organize.default — Folder for new entries (create tool lands here)
- * @property {Object<string, {folder: string, rules: Rule[]}>} organize.projects — Per-project folder mapping
- *   Each project: { folder: base folder, rules: [{ tag?, field?, value?, folder }] }
- *   Rules checked first (tag prefix match AND/OR field=value), fallback to base folder.
- * @property {Rule[]} organize.rules — Fallback rules for entries without a project
- * @property {Array<{name, type, desc, core?}>} fields — Frontmatter field definitions
- *   core fields (project, tags, created, modified, summary) can't be removed by user.
- *   User adds custom fields via Settings UI. Types: string, list, date, number.
- *
- * Brain internals (below fields line) are not in Settings UI but stored in config.json:
- * @property {string} name — App/MCP server name
- * @property {Object} api — Brain HTTP server { port, host }
- * @property {Object} tts — TTS server { port, host }
- * @property {string[]} skipLinkScan — Fields excluded from wikilink scanning
- * @property {string[]} frontmatterHead — Fields ordered first in YAML output
- * @property {string[]} frontmatterTail — Fields ordered last in YAML output
- * @property {Object} embeddings — Embedding model config { model, dimensions, skipTags }
+ * App-level defaults — machine-specific, stored in <dataDir>/config.json.
+ * Includes server ports, window prefs, embedding model config.
  */
-const DEFAULTS = {
+const APP_DEFAULTS = {
   v: 3,
   vaultPath: '',
-  guidelineName: 'HOME',
   startMinimized: false,
   verboseConsole: false,
+  name: APP_NAME,
+  api: { port: 43000, host: '127.0.0.1' },
+  tts: { port: 42033, host: '127.0.0.1' },
+  skipLinkScan: ['tags', 'state', 'status', 'narrate'],
+  frontmatterHead: ['name', 'project', 'tags'],
+  frontmatterTail: ['created', 'modified', 'summary'],
+  embeddings: { model: 'Xenova/multilingual-e5-large', dimensions: 1024 },
+}
+
+/**
+ * Vault-level defaults — stored in <vault>/.brain-thing/settings.json.
+ * Synced across machines via Syncthing or similar.
+ */
+const VAULT_DEFAULTS = {
+  guidelineName: 'HOME',
   features: { tts: false },
   ignore: {
     folders: ['Sec', '_etc', 'Assets', 'Log', 'Templates'],
@@ -55,9 +47,6 @@ const DEFAULTS = {
   organize: {
     useOrganize: false,
     default: 'Input',
-    // project key = value of entry.project field
-    // folder = base folder in vault for this project's entries
-    // rules = first-match rules for subfolders (tag prefix or field=value → folder)
     projects: {
       MP: {
         folder: 'My Project',
@@ -68,18 +57,15 @@ const DEFAULTS = {
         ],
       },
     },
-    // Fallback rules for entries without a matching project
     rules: [
       { tag: 'my/log', folder: 'Logs' },
     ],
   },
-  // Field definitions: core fields are protected, user adds custom ones.
-  // type: string | list | date | number
   fields: [
-    { name: 'project',  type: 'string', desc: 'Project grouping',                      core: true },
-    { name: 'tags',     type: 'list',   desc: 'Hierarchical categorization',           core: true },
-    { name: 'created',  type: 'date',   desc: 'Auto-set on creation',                  core: true },
-    { name: 'modified', type: 'date',   desc: 'Auto-updated on every write',           core: true },
+    { name: 'project',  type: 'string', desc: 'Project grouping',                       core: true },
+    { name: 'tags',     type: 'list',   desc: 'Hierarchical categorization',            core: true },
+    { name: 'created',  type: 'date',   desc: 'Auto-set on creation',                   core: true },
+    { name: 'modified', type: 'date',   desc: 'Auto-updated on every write',            core: true },
     { name: 'summary',  type: 'string', desc: 'Brief description for semantic indexing', core: true },
     { name: 'aliases',  type: 'list',   desc: 'Alternative names' },
     { name: 'status',   type: 'string', desc: 'Free-form status' },
@@ -88,29 +74,24 @@ const DEFAULTS = {
     { name: 'state',    type: 'string', desc: 'Document maturity' },
     { name: 'narrate',  type: 'string', desc: 'TTS collection name' },
   ],
-
-  // Brain internals — not editable via Settings UI, but stored in config.json
-  name: APP_NAME,
-  api: { port: 43000, host: '127.0.0.1' },   // Brain HTTP API
-  tts: { port: 42033, host: '127.0.0.1' },   // External TTS server
-  skipLinkScan: ['tags', 'state', 'status', 'narrate'],  // Fields excluded from wikilink detection
-  frontmatterHead: ['name', 'project', 'tags'],           // Top of YAML output
-  frontmatterTail: ['created', 'modified', 'summary'],    // Bottom of YAML output
-  embeddings: { model: 'Xenova/multilingual-e5-large', dimensions: 1024, skipTags: [] },
 }
 
-// --- Runtime state (mutable, set by init) ---
+// --- Signals ---
 
-export const config = {
-  ...DEFAULTS,
+const ready = new Signal({ late: true, memorable: true })
+const changed = new Signal()
+
+// --- Mutable state ---
+
+const state = {
+  ...APP_DEFAULTS,
+  ...VAULT_DEFAULTS,
   dataDir: null,
   vault: null,
   vectorCacheDir: null,
   modelCacheDir: null,
   resourcesPath: null,
   brainDir: null,
-
-  // Resolved FieldType instances (built from fields array)
   _fields: {
     project: FIELD.STRING.describe('Project grouping'),
     tags: FIELD.LIST.describe('Hierarchical categorization'),
@@ -120,26 +101,53 @@ export const config = {
   },
 }
 
-// Alias for code that reads config.fields as FieldType map
-Object.defineProperty(config, 'fields', {
-  get () { return config._fields },
-  set (v) { config._fields = v },
+Object.defineProperty(state, 'fields', {
+  get () { return state._fields },
+  set (v) { state._fields = v },
 })
 
-let configPath = null
+// --- Internal helpers ---
 
-function load () {
-  if (!configPath) return {}
-  try { return JSON.parse(readFileSync(configPath, 'utf-8')) } catch { return {} }
+let configPath = null
+let settingsPath = null
+let settingsWatcher = null
+let lastSettingsHash = null
+let settingsDebounce = null
+
+function loadJSON (filePath) {
+  if (!filePath) return {}
+  try { return JSON.parse(readFileSync(filePath, 'utf-8')) } catch { return {} }
 }
 
-function save (data) {
-  if (!configPath) return
-  writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf-8')
+/** Strip vault keys from app config to prevent cross-vault leaks */
+function stripVaultKeys (obj) {
+  for (const key of VAULT_KEYS) delete obj[key]
+  return obj
+}
+
+function saveJSON (filePath, data) {
+  if (!filePath) return
+  writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+}
+
+function hashStr (str) {
+  return crypto.createHash('sha256').update(str).digest('hex')
+}
+
+function ensureBrainDir (vaultPath) {
+  if (!vaultPath) return
+  const dir = join(vaultPath, BRAIN_DIR)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 
 function buildFields (arr = []) {
-  const fields = { ...config._fields }
+  const fields = {
+    project: FIELD.STRING.describe('Project grouping'),
+    tags: FIELD.LIST.describe('Hierarchical categorization'),
+    created: FIELD.DATE.describe('Auto-set on creation'),
+    modified: FIELD.DATE.describe('Auto-updated on every write'),
+    summary: FIELD.STRING.describe('Brief description for semantic indexing'),
+  }
   for (const def of arr) {
     const base = TYPE_MAP[def.type] || FIELD.STRING
     fields[def.name] = def.desc ? base.describe(def.desc) : base
@@ -147,9 +155,21 @@ function buildFields (arr = []) {
   return fields
 }
 
-function migrate (stored) {
+function loadSettings () {
+  return loadJSON(settingsPath)
+}
+
+function saveSettings (data) {
+  saveJSON(settingsPath, data)
+  try {
+    lastSettingsHash = hashStr(readFileSync(settingsPath, 'utf-8'))
+  } catch { /* ignore */ }
+}
+
+// --- Migration ---
+
+function migrateAppConfig (stored) {
   if (!stored.v || stored.v < 2) {
-    // v1 → v2: scopes → projects
     if (stored.organize?.scopes) {
       const projects = {}
       for (const scope of stored.organize.scopes) {
@@ -161,10 +181,9 @@ function migrate (stored) {
       delete stored.organize.noScopeRules
     }
     stored.v = 2
-    save(stored)
+    saveJSON(configPath, stored)
   }
   if (stored.v < 3) {
-    // v2 → v3: flat projects map → { folder, rules }
     if (stored.organize?.projects) {
       for (const [key, val] of Object.entries(stored.organize.projects)) {
         if (typeof val === 'string') {
@@ -173,73 +192,161 @@ function migrate (stored) {
       }
     }
     stored.v = 3
-    save(stored)
+    saveJSON(configPath, stored)
   }
 }
 
-function applyConfig () {
-  const stored = load()
-  migrate(stored)
-  const merged = { ...DEFAULTS, ...stored }
-
-  // Enforce core flags
-  if (Array.isArray(merged.fields)) {
-    for (const f of merged.fields) {
-      f.core = CORE_FIELD_NAMES.has(f.name) || false
+/** Create settings.json — migrate from config.json once, then defaults for new vaults */
+function ensureSettingsFile (appStored) {
+  if (!settingsPath || existsSync(settingsPath)) return
+  const data = { ...VAULT_DEFAULTS }
+  if (!appStored._settingsMigrated) {
+    for (const key of VAULT_KEYS) {
+      if (key in appStored) data[key] = appStored[key]
     }
+    saveJSON(configPath, { ...appStored, _settingsMigrated: true })
+  }
+  saveSettings(data)
+}
+
+// --- Settings watcher (external changes via Syncthing etc.) ---
+
+function stopSettingsWatcher () {
+  if (settingsWatcher) { settingsWatcher.close(); settingsWatcher = null }
+  if (settingsDebounce) { clearTimeout(settingsDebounce); settingsDebounce = null }
+}
+
+function startSettingsWatcher () {
+  stopSettingsWatcher()
+  if (!state.vault) return
+
+  const watchDir = join(state.vault, BRAIN_DIR)
+  if (!existsSync(watchDir)) return
+
+  try {
+    settingsWatcher = watch(watchDir, (_, filename) => {
+      if (filename !== 'settings.json') return
+      if (settingsDebounce) clearTimeout(settingsDebounce)
+      settingsDebounce = setTimeout(() => {
+        try {
+          const raw = readFileSync(settingsPath, 'utf-8')
+          const hash = hashStr(raw)
+          if (hash === lastSettingsHash) return
+          lastSettingsHash = hash
+          applyConfig()
+          changed.emit(state)
+        } catch { /* file gone or unreadable */ }
+      }, 500)
+    })
+  } catch { /* dir unavailable */ }
+}
+
+// --- Apply ---
+
+function applyConfig () {
+  const appStored = loadJSON(configPath)
+  migrateAppConfig(appStored)
+
+  const vaultPath = appStored.vaultPath || APP_DEFAULTS.vaultPath
+
+  if (vaultPath) {
+    ensureBrainDir(vaultPath)
+    settingsPath = join(vaultPath, BRAIN_DIR, 'settings.json')
+    ensureSettingsFile(appStored)
+  } else {
+    settingsPath = null
   }
 
-  // Apply user-editable settings
-  config.vaultPath = merged.vaultPath
-  config.vault = merged.vaultPath || null
-  config.guideline = merged.guidelineName
-  config.features = merged.features
-  config.ignore = merged.ignore
-  config.organize = merged.organize
-  config.name = merged.name
-  config.api = merged.api
-  config.tts = merged.tts
-  config.skipLinkScan = merged.skipLinkScan
-  config.frontmatterHead = merged.frontmatterHead
-  config.frontmatterTail = merged.frontmatterTail
-  config.embeddings = merged.embeddings
-  config._fields = buildFields(merged.fields)
+  const vaultStored = loadSettings()
 
-  // Computed paths
-  if (config.dataDir) {
-    config.vectorCacheDir = join(config.dataDir, 'vector-cache')
-    config.modelCacheDir = join(config.dataDir, 'models')
+  const app = { ...APP_DEFAULTS, ...appStored }
+  const vault = { ...VAULT_DEFAULTS, ...vaultStored }
+
+  if (Array.isArray(vault.fields)) {
+    for (const f of vault.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
+  }
+
+  // App config
+  state.vaultPath = app.vaultPath
+  state.vault = app.vaultPath || null
+  state.name = app.name
+  state.api = app.api
+  state.tts = app.tts
+  state.skipLinkScan = app.skipLinkScan
+  state.frontmatterHead = app.frontmatterHead
+  state.frontmatterTail = app.frontmatterTail
+  state.embeddings = app.embeddings
+
+  // Vault settings
+  state.guideline = vault.guidelineName
+  state.features = vault.features
+  state.ignore = vault.ignore
+  state.organize = vault.organize
+  state._fields = buildFields(vault.fields)
+
+  // Paths
+  if (state.dataDir) {
+    state.modelCacheDir = join(state.dataDir, 'models')
+  }
+  if (state.vault) {
+    state.vectorCacheDir = join(state.vault, BRAIN_DIR, 'vector-cache')
   }
 }
 
 // --- Public API ---
 
-export function init (dataDir) {
-  config.dataDir = dataDir
+function init (dataDir) {
+  state.dataDir = dataDir
   configPath = join(dataDir, 'config.json')
   applyConfig()
+  startSettingsWatcher()
+  ready.emit(state)
 }
 
-export function getConfig () {
-  const stored = load()
-  const merged = { ...DEFAULTS, ...stored }
+function get () {
+  const appStored = stripVaultKeys(loadJSON(configPath))
+  const vaultStored = loadSettings()
+  const merged = { ...APP_DEFAULTS, ...VAULT_DEFAULTS, ...appStored, ...vaultStored }
   if (Array.isArray(merged.fields)) {
     for (const f of merged.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
   }
   return merged
 }
 
-export function setConfig (patch) {
-  const current = load()
-  save({ ...DEFAULTS, ...current, ...patch })
+function set (patch) {
+  const appPatch = {}
+  const vaultPatch = {}
+  for (const [key, value] of Object.entries(patch)) {
+    if (VAULT_KEYS.has(key)) vaultPatch[key] = value
+    else appPatch[key] = value
+  }
+
+  if (Object.keys(appPatch).length) {
+    const current = stripVaultKeys(loadJSON(configPath))
+    saveJSON(configPath, { ...APP_DEFAULTS, ...current, ...appPatch })
+  }
+
+  if (Object.keys(vaultPatch).length && settingsPath) {
+    const current = loadSettings()
+    saveSettings({ ...VAULT_DEFAULTS, ...current, ...vaultPatch })
+  }
+
+  const prevVault = state.vault
   applyConfig()
+  if (state.vault !== prevVault) startSettingsWatcher()
+  changed.emit(state)
 }
 
-export function resetConfig () {
+function reset () {
   if (configPath && existsSync(configPath)) unlinkSync(configPath)
+  if (settingsPath && existsSync(settingsPath)) unlinkSync(settingsPath)
+  stopSettingsWatcher()
   applyConfig()
+  changed.emit(state)
 }
 
-export function getConfigPath () {
+function getPath () {
   return configPath
 }
+
+export const cfg = { ready, changed, state, init, get, set, reset, getPath }

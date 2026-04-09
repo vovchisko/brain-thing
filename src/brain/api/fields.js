@@ -1,5 +1,5 @@
 import { store }      from '../modules/store.js'
-import { config }     from '../config.js'
+import { cfg }        from '../config.js'
 import { createBus }  from '../lib/bus.js'
 
 const bus = createBus('fields')
@@ -48,7 +48,7 @@ export async function handleFields ({ tags, project } = {}) {
     }
   }
 
-  const typeDefs = config.fields || {}
+  const typeDefs = cfg.state.fields || {}
   let response = `Fields across ${ entries.length } entries`
   if (tags?.length) response += ` [tags: ${ tags.join(', ') }]`
   if (project) response += ` [project: ${ project }]`

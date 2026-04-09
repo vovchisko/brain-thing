@@ -3,7 +3,6 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join }                     from 'node:path'
 import { homedir }                  from 'node:os'
 import { createBus }                from '../lib/bus.js'
-import { config }                   from '../config.js'
 
 const bus = createBus('register', { system: true })
 
@@ -35,7 +34,7 @@ function findDesktopConfig () {
   return null
 }
 
-function getMcpEntry () {
+function getMcpEntry (config) {
   if (config.resourcesPath) {
     const ext = process.platform === 'win32' ? '.exe' : ''
     return { command: join(config.resourcesPath, `brain-mcp${ ext }`) }
@@ -46,7 +45,7 @@ function getMcpEntry () {
   }
 }
 
-function getConfigPaths () {
+function getConfigPaths (config) {
   const paths = []
   const desktopPath = findDesktopConfig()
   if (desktopPath) paths.push({ label: 'Claude Desktop', path: desktopPath })
@@ -54,18 +53,18 @@ function getConfigPaths () {
   return paths
 }
 
-function isRegistered (configPath) {
+function isRegistered (configPath, config) {
   try {
     const cfg = parseJsonPermissive(readFileSync(configPath, 'utf-8'))
     return !!cfg.mcpServers?.[config.name]
   } catch { return false }
 }
 
-async function register () {
-  const entry = getMcpEntry()
+async function register (config) {
+  const entry = getMcpEntry(config)
   const results = []
 
-  for (const { label, path } of getConfigPaths()) {
+  for (const { label, path } of getConfigPaths(config)) {
     const e = label === 'Claude Code' ? { ...entry, type: 'stdio' } : entry
     try {
       let cfg
@@ -89,10 +88,10 @@ async function register () {
   return results
 }
 
-async function unregister () {
+async function unregister (config) {
   const results = []
 
-  for (const { label, path } of getConfigPaths()) {
+  for (const { label, path } of getConfigPaths(config)) {
     try {
       let cfg
       try {
@@ -116,11 +115,11 @@ async function unregister () {
   return results
 }
 
-function mcpStatus () {
-  return getConfigPaths().map(({ label, path }) => ({
+function mcpStatus (config) {
+  return getConfigPaths(config).map(({ label, path }) => ({
     label,
-    registered: isRegistered(path),
+    registered: isRegistered(path, config),
   }))
 }
 
-export { register, unregister, mcpStatus }
+export const registration = { register, unregister, mcpStatus }

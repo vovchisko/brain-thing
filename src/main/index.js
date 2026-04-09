@@ -2,8 +2,9 @@ import { app, BrowserWindow, dialog, ipcMain, shell }         from 'electron'
 import { join }                                              from 'path'
 import { cpSync, readdirSync, renameSync, rmSync, statSync } from 'fs'
 import { electronApp, is, optimizer }                        from '@electron-toolkit/utils'
-import { init, config, getConfig, setConfig, resetConfig, getConfigPath } from '../brain/config.js'
-import { start, hotSwap, server }                            from '../brain/server.js'
+import { cfg }                                               from '../brain/config.js'
+import { server }                                            from '../brain/server.js'
+import { registration }                                      from '../brain/modules/register.js'
 import { onBrainEvent }                                      from '../brain/lib/bus.js'
 import { createTray, checkForUpdate }                        from './tray'
 import { IPC }                                               from '../shared/ipc'
@@ -59,6 +60,17 @@ server.onIssues    = (d) => pushStat(IPC.STAT_ISSUES, 'issues', d)
 server.onFields    = (d) => pushStat(IPC.STAT_FIELDS, 'fields', d)
 server.onProjects  = (d) => pushStat(IPC.STAT_PROJECTS, 'projects', d)
 server.onLiveCount = (n) => pushStat(IPC.STAT_ENTRIES, 'entries', n)
+server.onConfigChanged = () => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC.CONFIG_CHANGED)
+  }
+}
+
+// --- Init ---
+const dataDir = app.getPath('userData')
+cfg.init(dataDir)
+cfg.state.resourcesPath = app.isPackaged ? process.resourcesPath : null
+cfg.state.brainDir = join(app.getAppPath(), 'src', 'brain')
 
 // --- Window ---
 let mainWindow
@@ -71,7 +83,7 @@ function createWindow () {
     return
   }
 
-  const wb = getConfig().windowBounds || {}
+  const wb = cfg.get().windowBounds || {}
 
   mainWindow = new BrowserWindow({
     width: wb.width || 900,
@@ -89,7 +101,7 @@ function createWindow () {
     },
   })
 
-  const saveBounds = () => setConfig({ windowBounds: mainWindow.getBounds() })
+  const saveBounds = () => cfg.set({ windowBounds: mainWindow.getBounds() })
   mainWindow.on('resized', saveBounds)
   mainWindow.on('moved', saveBounds)
 
@@ -110,14 +122,6 @@ function createWindow () {
   }
 }
 
-// --- Init ---
-const dataDir = app.getPath('userData')
-init(dataDir)
-
-// Set paths that need Electron APIs
-config.resourcesPath = app.isPackaged ? process.resourcesPath : null
-config.brainDir = join(app.getAppPath(), 'src', 'brain')
-
 app.on('second-instance', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
@@ -136,10 +140,10 @@ app.whenReady().then(() => {
   })
 
   // Config IPC — delegates to brain/config.js
-  ipcMain.handle(IPC.CONFIG_GET, () => getConfig())
-  ipcMain.handle(IPC.CONFIG_SET, (_e, patch) => setConfig(patch))
-  ipcMain.handle(IPC.CONFIG_RESET, () => resetConfig())
-  ipcMain.handle(IPC.CONFIG_PATH, () => getConfigPath())
+  ipcMain.handle(IPC.CONFIG_GET, () => cfg.get())
+  ipcMain.handle(IPC.CONFIG_SET, (_e, patch) => cfg.set(patch))
+  ipcMain.handle(IPC.CONFIG_RESET, () => cfg.reset())
+  ipcMain.handle(IPC.CONFIG_PATH, () => cfg.getPath())
 
   // FS helpers
   ipcMain.handle(IPC.FS_IS_DIR, (_e, p) => {
@@ -160,15 +164,14 @@ app.whenReady().then(() => {
   })
 
   // Brain
-  ipcMain.handle(IPC.BRAIN_SWAP, () => hotSwap())
+  ipcMain.handle(IPC.BRAIN_SWAP, () => server.hotSwap())
   ipcMain.handle(IPC.LOG_BUFFER, () => [...logOrder])
   ipcMain.handle(IPC.STAT_GET, () => ({ ...statsCache }))
 
   // MCP registration
-  const reg = import('../brain/modules/register.js')
-  ipcMain.handle(IPC.MCP_STATUS, async () => (await reg).mcpStatus())
-  ipcMain.handle(IPC.MCP_REGISTER, async () => (await reg).register())
-  ipcMain.handle(IPC.MCP_UNREGISTER, async () => (await reg).unregister())
+  ipcMain.handle(IPC.MCP_STATUS, () => registration.mcpStatus(cfg.state))
+  ipcMain.handle(IPC.MCP_REGISTER, () => registration.register(cfg.state))
+  ipcMain.handle(IPC.MCP_UNREGISTER, () => registration.unregister(cfg.state))
 
   // Autostart
   ipcMain.handle(IPC.AUTOSTART_GET, () => !is.dev && app.getLoginItemSettings().openAtLogin)
@@ -181,13 +184,13 @@ app.whenReady().then(() => {
   })
 
   createTray(icon, createWindow)
-  if (!is.dev && getConfig().startMinimized) {
+  if (!is.dev && cfg.get().startMinimized) {
     // Start in tray only — tray click will create window
   } else {
     createWindow()
   }
 
-  start().catch((err) => {
+  server.start().catch((err) => {
     console.error('[brain] Failed to start:', err.message)
   })
 

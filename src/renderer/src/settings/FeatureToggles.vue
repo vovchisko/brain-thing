@@ -1,32 +1,21 @@
 <script setup>
-import { onMounted, ref, toRaw } from 'vue'
+import { settings } from './state.js'
 
-const features = ref({ tts: false })
-const saved = ref(false)
-
-onMounted(async () => {
-  const cfg = await window.api.config.get()
-  if (cfg.features) features.value = { ...features.value, ...cfg.features }
-})
-
-async function toggle(key) {
-  features.value[key] = !features.value[key]
-  await window.api.config.set({ features: { ...toRaw(features.value) } })
-  saved.value = true
-  setTimeout(() => (saved.value = false), 1500)
+async function toggle (key) {
+  const features = { ...settings.config.value.features, [key]: !settings.config.value.features[key] }
+  await settings.save({ features })
 }
 </script>
 
 <template>
-  <div class="features">
+  <div v-if="settings.config.value" class="features">
     <label class="g-label">Features</label>
     <div class="features_row">
       <span class="features_name">TTS Narration</span>
-      <button class="g-btn features_toggle" :class="{ _on: features.tts }" @click="toggle('tts')">
-        {{ features.tts ? 'ON' : 'OFF' }}
+      <button class="g-btn features_toggle" :class="{ _on: settings.config.value.features.tts }" @click="toggle('tts')">
+        {{ settings.config.value.features.tts ? 'ON' : 'OFF' }}
       </button>
     </div>
-    <div v-if="saved" class="g-saved">Saved — restart MCP to apply</div>
     <div class="g-hint">Optional features. Changes require MCP restart.</div>
   </div>
 </template>

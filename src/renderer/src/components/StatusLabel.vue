@@ -1,7 +1,7 @@
 <script setup>
 import { computed }  from 'vue'
-import { STATUS }    from '../../../shared/status'
-import { state }     from '../state'
+import { STATUS }    from '../../../shared/status.js'
+import { state }     from '../state.js'
 
 const LABELS = {
   [STATUS.IDLE]:        'No vault',

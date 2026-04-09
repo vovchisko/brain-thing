@@ -1,7 +1,33 @@
 import { dirname }                 from 'path'
 import { fileURLToPath }           from 'url'
-import { config, init, TOOLS }     from './config.js'
+import Fastify                     from 'fastify'
+import { cfg, TOOLS }              from './config.js'
 import { createBus }               from './lib/bus.js'
+import { store }                   from './modules/store.js'
+import { embeddings }              from './modules/embeddings.js'
+import { obsidian }                from './modules/obsidian.js'
+import { watcher }                 from './modules/watcher.js'
+import { registration }            from './modules/register.js'
+import { diagnostics }             from './modules/diagnostics.js'
+import { tts }                     from './modules/tts.js'
+import { wrap }                    from './lib/api.js'
+
+import { handleGet }        from './api/get.js'
+import { handleWhatIs }     from './api/what_is.js'
+import { handleTagsList }   from './api/tags_list.js'
+import { handleCreate }     from './api/create.js'
+import { handleUpdate }     from './api/update.js'
+import { handleReplace }    from './api/replace.js'
+import { handleInsert }     from './api/insert.js'
+import { handleDelete }     from './api/delete.js'
+import { handleRename }     from './api/rename.js'
+import { handleGrep }       from './api/grep.js'
+import { handleNarrate }    from './api/narrate.js'
+import { handleLookAround } from './api/look_around.js'
+import { handleFields }     from './api/fields.js'
+import { handleSearch }     from './api/search.js'
+import { handleDiagnostic }     from './api/diagnostic.js'
+import { handleProjectConfig } from './api/project_config.js'
 
 import * as mcpGet        from './mcp/get.js'
 import * as mcpWhatIs     from './mcp/what_is.js'
@@ -17,36 +43,29 @@ import * as mcpRename     from './mcp/rename.js'
 import * as mcpFields     from './mcp/fields.js'
 import * as mcpSearch     from './mcp/search.js'
 import * as mcpNarrate    from './mcp/narrate.js'
-import * as mcpDiagnostic from './mcp/diagnostic.js'
+import * as mcpDiagnostic     from './mcp/diagnostic.js'
+import * as mcpProjectConfig from './mcp/project_config.js'
 
 const ALL_MCP = [
   mcpGet, mcpWhatIs, mcpGrep, mcpLookAround, mcpTagsList,
   mcpCreate, mcpUpdate, mcpReplace, mcpInsert, mcpDelete, mcpRename,
-  mcpFields, mcpSearch, mcpNarrate, mcpDiagnostic,
+  mcpFields, mcpSearch, mcpNarrate, mcpDiagnostic, mcpProjectConfig,
 ]
 
 const bus = createBus('brain')
 
-export const server = {
-  onStatus: null,
-  onEntries: null,
-  onIssues: null,
-  onFields: null,
-  onProjects: null,
-  onLiveCount: null,
-}
-
 const SKIP_FIELDS = new Set(['name', 'content', 'source_file', 'content_hash'])
 
-let _store, _obsidian, _watcher, _embeddings, _diagnostics, _tts, _fastify, _changeCallback
+let _fastify = null
+let _changeCallback = null
 
 function pushEntries () {
-  if (server.onEntries) server.onEntries(_store.entries.size)
+  if (server.onEntries) server.onEntries(store.entries.size)
 }
 
 function pushIssues () {
   let summary = 0, links = 0
-  for (const entry of _store.entries) {
+  for (const entry of store.entries) {
     if (entry.issues.has('summary')) summary++
     if (entry.issues.has('links')) links++
   }
@@ -55,7 +74,7 @@ function pushIssues () {
 
 function pushFields () {
   const counts = {}
-  for (const entry of _store.entries) {
+  for (const entry of store.entries) {
     for (const [key, value] of Object.entries(entry)) {
       if (SKIP_FIELDS.has(key)) continue
       if (value == null) continue
@@ -67,16 +86,15 @@ function pushFields () {
 }
 
 function pushProjects () {
-  if (!server.onProjects || !_store) return
+  if (!server.onProjects) return
   const counts = {}
   let noProject = 0
-  for (const entry of _store.entries) {
+  for (const entry of store.entries) {
     if (entry.project) counts[entry.project] = (counts[entry.project] || 0) + 1
     else noProject++
   }
   server.onProjects({ projects: counts, noProject })
 }
-
 
 function status (phase, extra) {
   if (server.onStatus) server.onStatus(extra ? { phase, ...extra } : { phase })
@@ -87,7 +105,7 @@ let liveTimer = null
 function startLiveCounter () {
   stopLiveCounter()
   liveTimer = setInterval(() => {
-    if (server.onLiveCount) server.onLiveCount(_store.entries.size)
+    if (server.onLiveCount) server.onLiveCount(store.entries.size)
   }, 150)
 }
 
@@ -95,11 +113,14 @@ function stopLiveCounter () {
   if (liveTimer) { clearInterval(liveTimer); liveTimer = null }
 }
 
-export async function start (dataDir) {
+async function start (dataDir) {
   if (dataDir) {
-    init(dataDir)
-    if (!config.brainDir) config.brainDir = dirname(fileURLToPath(import.meta.url))
+    cfg.init(dataDir)
+    if (!cfg.state.brainDir) cfg.state.brainDir = dirname(fileURLToPath(import.meta.url))
   }
+
+  const config = cfg.state
+
   if (!config.vault) {
     bus.warn('start', 'No vault path configured, server not started')
     return null
@@ -107,38 +128,8 @@ export async function start (dataDir) {
 
   process.env.TRANSFORMERS_CACHE = config.modelCacheDir
 
-  const { default: Fastify } = await import('fastify')
-  const { store }            = await import('./modules/store.js')
-  const { embeddings }       = await import('./modules/embeddings.js')
-  const { obsidian }         = await import('./modules/obsidian.js')
-  const { watcher }          = await import('./modules/watcher.js')
-  const { register }         = await import('./modules/register.js')
-  const { diagnostics }      = await import('./modules/diagnostics.js')
-  const { tts }              = await import('./modules/tts.js')
-  const { wrap }             = await import('./lib/api.js')
-
-  const { handleGet }        = await import('./api/get.js')
-  const { handleWhatIs }     = await import('./api/what_is.js')
-  const { handleTagsList }   = await import('./api/tags_list.js')
-  const { handleCreate }     = await import('./api/create.js')
-  const { handleUpdate }     = await import('./api/update.js')
-  const { handleReplace }    = await import('./api/replace.js')
-  const { handleInsert }     = await import('./api/insert.js')
-  const { handleDelete }     = await import('./api/delete.js')
-  const { handleRename }     = await import('./api/rename.js')
-  const { handleGrep }       = await import('./api/grep.js')
-  const { handleNarrate }    = await import('./api/narrate.js')
-  const { handleLookAround } = await import('./api/look_around.js')
-  const { handleFields }     = await import('./api/fields.js')
-  const { handleSearch }     = await import('./api/search.js')
-  const { handleDiagnostic } = await import('./api/diagnostic.js')
-
-  _store = store
-  _obsidian = obsidian
-  _watcher = watcher
-  _embeddings = embeddings
-  _diagnostics = diagnostics
-  _tts = tts
+  store.init(config)
+  obsidian.init(config)
 
   const fastify = Fastify({ logger: false })
   _fastify = fastify
@@ -160,6 +151,7 @@ export async function start (dataDir) {
     fastify.post(`/${ TOOLS.NARRATE }`, wrap('narrate', handleNarrate))
   }
   fastify.post(`/${ TOOLS.DIAGNOSTIC }`, wrap('diagnostic', handleDiagnostic))
+  fastify.post(`/${ TOOLS.PROJECT_CONFIG }`, wrap('project_config', handleProjectConfig))
 
   fastify.get('/status', async () => ({ name: config.name, entries: store.entries.size, vault: config.vault }))
   fastify.get('/tools', async () => {
@@ -179,7 +171,7 @@ export async function start (dataDir) {
   }
 
   status('startup')
-  await register()
+  await registration.register(config)
 
   status('downloading-embedding')
   embeddings.onProgress = (data) => {
@@ -187,7 +179,7 @@ export async function start (dataDir) {
       status('downloading-embedding', { progress: Math.round(data.progress), file: data.file })
     }
   }
-  await embeddings.init()
+  await embeddings.init(config)
   embeddings.onProgress = null
 
   status('scanning')
@@ -201,8 +193,13 @@ export async function start (dataDir) {
 
   status('ready')
   diagnostics.checkAll()
-  watcher.start(_changeCallback)
-  if (config.features.tts) tts.init()
+  watcher.start(config, _changeCallback)
+  if (config.features.tts) tts.init(config)
+
+  cfg.changed.on(() => {
+    pushProjects()
+    if (server.onConfigChanged) server.onConfigChanged()
+  })
 
   store.ready.emit()
 
@@ -217,35 +214,49 @@ export async function start (dataDir) {
   return fastify
 }
 
-export async function hotSwap () {
-  if (!_store) return start()
+async function hotSwap () {
+  if (!store.entries) return start()
 
-  // Re-read config (already applied by setConfig)
+  const config = cfg.state
   bus.info('swap', `Hot-swapping vault to ${ config.vault }`)
 
-  _store.ready.forget()
-  _watcher.stop()
-  _store.entries.clear()
+  store.ready.forget()
+  watcher.stop()
+  store.entries.clear()
 
   status('re-indexing')
   startLiveCounter()
-  await _obsidian.run()
+  await obsidian.run()
   stopLiveCounter()
 
   status('indexing')
-  await _store.entries.ensureVectors()
-  await _embeddings.cleanup()
+  await store.entries.ensureVectors()
+  await embeddings.cleanup()
 
   status('ready')
-  _diagnostics.checkAll()
-  _watcher.start(_changeCallback)
+  diagnostics.checkAll()
+  watcher.start(config, _changeCallback)
 
-  _store.ready.emit()
+  store.ready.emit()
 
   pushEntries()
   pushIssues()
   pushFields()
   pushProjects()
 
-  bus.info('swap', `Complete: ${ _store.entries.size } entries`)
+  if (server.onConfigChanged) server.onConfigChanged()
+
+  bus.info('swap', `Complete: ${ store.entries.size } entries`)
+}
+
+export const server = {
+  start,
+  hotSwap,
+  onStatus: null,
+  onEntries: null,
+  onIssues: null,
+  onFields: null,
+  onProjects: null,
+  onLiveCount: null,
+  onConfigChanged: null,
 }

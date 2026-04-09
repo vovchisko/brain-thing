@@ -3,6 +3,7 @@
 import { mkdirSync, writeFileSync, readdirSync, rmSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { server } from './server.js'
 
 const BRAIN_DIR = dirname(fileURLToPath(import.meta.url))
 const TEST_DIR = join(BRAIN_DIR, '_test-env')
@@ -89,9 +90,7 @@ async function run () {
 
   seedVault()
 
-  const { start } = await import('./server.js')
-  const { config } = await import('./config.js')
-  fastify = await start(TEST_DIR)
+  fastify = await server.start(TEST_DIR)
   if (!fastify) { console.error('start() returned null'); process.exit(1) }
 
   const testsDir = join(BRAIN_DIR, 'test')

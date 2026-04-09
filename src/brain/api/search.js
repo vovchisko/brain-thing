@@ -1,5 +1,5 @@
 import { store }      from '../modules/store.js'
-import { config }     from '../config.js'
+import { cfg }        from '../config.js'
 import { ApiError }   from '../lib/api.js'
 import { FieldType }  from '../lib/field-types.js'
 import { createBus }  from '../lib/bus.js'
@@ -11,7 +11,7 @@ const DEFAULT_LIMIT = 50
 const fallback = new FieldType()
 
 function getType (field) {
-  return config.fields?.[field] || fallback
+  return cfg.state.fields?.[field] || fallback
 }
 
 /**

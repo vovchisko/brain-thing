@@ -3,20 +3,19 @@ import crypto       from 'node:crypto'
 import fs           from 'node:fs/promises'
 import path         from 'node:path'
 import { createBus } from '../lib/bus.js'
-import { config }    from '../config.js'
 
 const bus = createBus('embed', { system: true })
 
 let embedder = null
-const CACHE_DIR = config.vectorCacheDir || '.vector-cache'
+let _config = null
 const accessedHashes = new Set()
 
+function cacheDir () {
+  return _config?.vectorCacheDir || '.vector-cache'
+}
+
 async function ensureCacheDir () {
-  try {
-    await fs.mkdir(CACHE_DIR, { recursive: true })
-  } catch (err) {
-    // ignore
-  }
+  try { await fs.mkdir(cacheDir(), { recursive: true }) } catch { /* ignore */ }
 }
 
 function hashContent (text) {
@@ -24,7 +23,7 @@ function hashContent (text) {
 }
 
 function getCachePath (hash) {
-  return path.join(CACHE_DIR, `${ hash }.bin`)
+  return path.join(cacheDir(), `${ hash }.bin`)
 }
 
 async function loadVectorFromCache (hash) {
@@ -47,14 +46,14 @@ async function saveVectorToCache (hash, vector) {
   accessedHashes.add(hash)
 }
 
-/** @type {((data: object) => void) | null} */
 let _onProgress = null
 
-async function init () {
-  const cacheDir = config.modelCacheDir || undefined
-  bus.info('init', `Loading model: ${ config.embeddings.model }${ cacheDir ? ` (cache: ${ cacheDir })` : '' }`)
+async function init (config) {
+  _config = config
+  const modelCache = config.modelCacheDir || undefined
+  bus.info('init', `Loading model: ${ config.embeddings.model }${ modelCache ? ` (cache: ${ modelCache })` : '' }`)
   embedder = await pipeline('feature-extraction', config.embeddings.model, {
-    cache_dir: cacheDir,
+    cache_dir: modelCache,
     progress_callback: (data) => {
       if (_onProgress) _onProgress(data)
     },
@@ -92,7 +91,8 @@ async function getVector (text, label) {
 
 async function cleanup () {
   try {
-    const files = await fs.readdir(CACHE_DIR)
+    const dir = cacheDir()
+    const files = await fs.readdir(dir)
     let removed = 0
 
     for (const file of files) {
@@ -100,7 +100,7 @@ async function cleanup () {
 
       const hash = file.replace('.bin', '')
       if (!accessedHashes.has(hash)) {
-        await fs.unlink(path.join(CACHE_DIR, file))
+        await fs.unlink(path.join(dir, file))
         removed++
       }
     }
@@ -134,5 +134,5 @@ export const embeddings = {
   cleanup,
   cosineSimilarity,
   hashContent,
-  set onProgress(fn) { _onProgress = fn },
+  set onProgress (fn) { _onProgress = fn },
 }

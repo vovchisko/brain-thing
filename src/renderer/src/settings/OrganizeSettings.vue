@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, toRaw } from 'vue'
+import { computed, ref, toRaw, watch } from 'vue'
+import { settings } from './state.js'
 
 const organize = ref({
   useOrganize: false,
@@ -14,20 +15,17 @@ const expanded = ref(new Set())
 const dirty = computed(() => JSON.stringify(organize.value) !== JSON.stringify(original.value))
 const projectList = computed(() => Object.entries(organize.value.projects || {}))
 
-onMounted(async () => {
-  const cfg = await window.api.config.get()
-  if (cfg.organize) {
-    organize.value = JSON.parse(JSON.stringify(cfg.organize))
-    original.value = JSON.parse(JSON.stringify(cfg.organize))
+watch(() => settings.config.value?.organize, (org) => {
+  if (org) {
+    organize.value = JSON.parse(JSON.stringify(org))
+    original.value = JSON.parse(JSON.stringify(org))
   }
-})
+}, { immediate: true })
 
 async function save () {
   const raw = JSON.parse(JSON.stringify(toRaw(organize.value)))
-  await window.api.config.set({ organize: raw })
-  original.value = JSON.parse(JSON.stringify(raw))
+  await settings.saveAndSwap({ organize: raw })
   saved.value = true
-  window.api.brainSwap()
   setTimeout(() => (saved.value = false), 1500)
 }
 

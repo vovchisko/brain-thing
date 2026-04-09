@@ -1,10 +1,11 @@
 <script setup>
-import { ref }             from 'vue'
-import GeneralSettings     from '../components/GeneralSettings.vue'
-import FieldSettings       from '../components/FieldSettings.vue'
-import IgnoreSettings      from '../components/IgnoreSettings.vue'
-import OrganizeSettings    from '../components/OrganizeSettings.vue'
-import FeatureToggles      from '../components/FeatureToggles.vue'
+import { onMounted, ref } from 'vue'
+import { settings }        from './state.js'
+import GeneralSettings     from './GeneralSettings.vue'
+import FieldSettings       from './FieldSettings.vue'
+import IgnoreSettings      from './IgnoreSettings.vue'
+import OrganizeSettings    from './OrganizeSettings.vue'
+import FeatureToggles      from './FeatureToggles.vue'
 
 const sections = [
   { id: 'general', label: 'General' },
@@ -15,6 +16,8 @@ const sections = [
 ]
 
 const active = ref('general')
+
+onMounted(settings.load)
 </script>
 
 <template>

@@ -1,25 +1,23 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { settings } from './state.js'
 
 const name = ref('')
 const current = ref('')
 const saved = ref(false)
 const dirty = computed(() => name.value !== current.value)
 
-onMounted(async () => {
-  const cfg = await window.api.config.get()
-  const val = cfg.guidelineName || 'HOME'
+watch(() => settings.config.value?.guidelineName, (v) => {
+  const val = v || 'HOME'
   name.value = val
   current.value = val
-})
+}, { immediate: true })
 
-async function apply() {
+async function apply () {
   const val = name.value.trim()
   if (!val) return
-  await window.api.config.set({ guidelineName: val })
-  current.value = val
+  await settings.saveAndSwap({ guidelineName: val })
   saved.value = true
-  window.api.brainSwap()
   setTimeout(() => (saved.value = false), 1500)
 }
 </script>

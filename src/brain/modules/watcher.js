@@ -1,11 +1,11 @@
 import { watch }        from 'node:fs'
 import path             from 'node:path'
-import { config }       from '../config.js'
 import { createBus }    from '../lib/bus.js'
 import { shouldIgnore } from '../lib/utils.js'
 
 const bus = createBus('watcher', { system: true })
 
+let _config = null
 let debounceTimer = null
 let pendingChanges = new Set()
 let onChangeCallback = null
@@ -14,7 +14,7 @@ let activeWatcher = null
 function handleChange (eventType, filename, dir) {
   if (!filename || !filename.endsWith('.md')) return
   const fullPath = path.join(dir, filename)
-  if (shouldIgnore(fullPath, config.ignore)) return
+  if (shouldIgnore(fullPath, _config.ignore)) return
 
   pendingChanges.add(fullPath)
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -37,16 +37,17 @@ function stop () {
   pendingChanges.clear()
 }
 
-function start (callback) {
+function start (config, callback) {
   stop()
+  _config = config
   onChangeCallback = callback
   try {
-    activeWatcher = watch(config.vault, { recursive: true }, (eventType, filename) => {
-      handleChange(eventType, filename, config.vault)
+    activeWatcher = watch(_config.vault, { recursive: true }, (eventType, filename) => {
+      handleChange(eventType, filename, _config.vault)
     })
-    bus.info('start', `Watching ${ config.vault }`)
+    bus.info('start', `Watching ${ _config.vault }`)
   } catch (err) {
-    bus.error('start', `Failed to watch ${ config.vault }: ${ err.message }`)
+    bus.error('start', `Failed to watch ${ _config.vault }: ${ err.message }`)
   }
 }
 

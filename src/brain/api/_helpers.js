@@ -1,6 +1,6 @@
 import matter        from 'gray-matter'
 import { store }     from '../modules/store.js'
-import { config }    from '../config.js'
+import { cfg }       from '../config.js'
 import { orderKeys } from '../lib/utils.js'
 
 const HIDDEN_FIELDS = new Set([ 'source_file', 'content_hash', 'content' ])
@@ -52,7 +52,7 @@ export function formatEntry (entry) {
     if (Array.isArray(value) && value.length === 0) continue
     frontmatter[key] = value
   }
-  const ordered = orderKeys(frontmatter, config.frontmatterHead, config.frontmatterTail)
+  const ordered = orderKeys(frontmatter, cfg.state.frontmatterHead, cfg.state.frontmatterTail)
   return matter.stringify(entry.content || '', ordered).trim()
 }
 

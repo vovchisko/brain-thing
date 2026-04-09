@@ -2,18 +2,10 @@ import Signal         from 'a-signal'
 import { Collection } from '../lib/collection.js'
 import { Entry }      from '../models/Entry.js'
 import { embeddings } from './embeddings.js'
-import { config }     from '../config.js'
 
 class VectorCollection extends Collection {
-  /**
-   * Ensure entry has default vector
-   * @param {Entry} entity
-   */
   async ensureVector (entity) {
     if (entity.vectors.has('default')) return
-    const skip = config.embeddings.skipTags
-    if (skip?.length && entity.tags?.some(t => skip.includes(t))) return
-
     const text = entity.summary
         ? `${ entity.name }\n\n${ entity.summary }`
         : `${ entity.name }\n\n${ entity.content }`
@@ -22,19 +14,12 @@ class VectorCollection extends Collection {
     entity.setVector('default', text, hash, vector)
   }
 
-  /** Ensure all entries have vectors */
   async ensureVectors () {
     for (const entity of this) {
       await this.ensureVector(entity)
     }
   }
 
-  /**
-   * Search by vector similarity
-   * @param {string} query
-   * @param {number} [limit=5]
-   * @returns {Promise<Array<{entity: Entry, score: number}>>}
-   */
   async searchByVector (query, limit = 5) {
     const queryVector = await embeddings.getVector(query)
     const results = []
@@ -42,7 +27,6 @@ class VectorCollection extends Collection {
     for (const entity of this) {
       await this.ensureVector(entity)
 
-      // Find best score across all vectors for this entry
       let bestScore = 0
       for (const vecData of entity.vectors.values()) {
         const score = embeddings.cosineSimilarity(queryVector, vecData.vector)
@@ -57,16 +41,23 @@ class VectorCollection extends Collection {
   }
 }
 
-const entries = new VectorCollection(Entry, {
-  vectorDimensions: config.embeddings.dimensions,
-})
+let _config = null
+let _entries = null
+let SKIP_FIELDS = null
 
-const SKIP_FIELDS = new Set([
-  'name', 'source_file', 'content_hash',
-  ...config.skipLinkScan || [],
-])
+const ready = new Signal({ late: true })
 
-/** Collect all string field values from entry for wikilink scanning */
+function init (config) {
+  _config = config
+  _entries = new VectorCollection(Entry, {
+    vectorDimensions: config.embeddings.dimensions,
+  })
+  SKIP_FIELDS = new Set([
+    'name', 'source_file', 'content_hash',
+    ...config.skipLinkScan || [],
+  ])
+}
+
 function collectSearchableText (entry) {
   let text = ''
   for (const [ key, value ] of Object.entries(entry)) {
@@ -101,11 +92,11 @@ function findBacklinks (targetName) {
     return false
   }
 
-  const targetEntry = entries.get(targetName)
+  const targetEntry = _entries.get(targetName)
   if (!targetEntry) return backlinks
 
   const seen = new Set()
-  for (const entry of entries) {
+  for (const entry of _entries) {
     if (seen.has(entry.name)) continue
     const matches = [ ...collectSearchableText(entry).matchAll(pattern) ]
     for (const match of matches) {
@@ -120,10 +111,9 @@ function findBacklinks (targetName) {
   return backlinks
 }
 
-const ready = new Signal({ late: true })
-
 export const store = {
   ready,
+  init,
   findBacklinks,
-  entries,
+  get entries () { return _entries },
 }

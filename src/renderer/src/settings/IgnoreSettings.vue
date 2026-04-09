@@ -1,21 +1,22 @@
 <script setup>
-import { ref, toRaw, onMounted } from 'vue'
-import UiListEditor       from '../ui/UiListEditor.vue'
+import { ref, toRaw, watch } from 'vue'
+import { settings }   from './state.js'
+import UiListEditor   from '../ui/UiListEditor.vue'
 
 const folders = ref([])
 const patterns = ref([])
 const saved = ref(false)
 
-onMounted(async () => {
-  const cfg = await window.api.config.get()
-  if (cfg.ignore?.folders) folders.value = [...cfg.ignore.folders]
-  if (cfg.ignore?.patterns) patterns.value = [...cfg.ignore.patterns]
-})
+watch(() => settings.config.value?.ignore, (ig) => {
+  if (ig) {
+    folders.value = [...(ig.folders || [])]
+    patterns.value = [...(ig.patterns || [])]
+  }
+}, { immediate: true })
 
-async function save() {
-  await window.api.config.set({ ignore: { folders: [...toRaw(folders.value)], patterns: [...toRaw(patterns.value)] } })
+async function save () {
+  await settings.saveAndSwap({ ignore: { folders: [...toRaw(folders.value)], patterns: [...toRaw(patterns.value)] } })
   saved.value = true
-  window.api.brainSwap()
   setTimeout(() => (saved.value = false), 1500)
 }
 </script>

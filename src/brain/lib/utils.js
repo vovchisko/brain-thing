@@ -88,6 +88,26 @@ export function validateName (name) {
 }
 
 /**
+ * Validate folder path (one or more segments separated by /).
+ * Each segment must be a valid directory name.
+ * @param {string} folder
+ * @returns {string|null} Error message or null if valid
+ */
+export function validateFolder (folder) {
+  if (!folder || !folder.trim()) return 'Folder cannot be empty'
+  const segments = folder.replace(/\\/g, '/').split('/').filter(Boolean)
+  if (segments.length === 0) return 'Folder cannot be empty'
+  const BAD_SEGMENT = /[:*?"<>|]/
+  for (const seg of segments) {
+    if (seg !== seg.trim()) return `Folder segment "${ seg }" has leading/trailing spaces`
+    if (seg.startsWith('.')) return `Folder segment "${ seg }" cannot start with a dot`
+    if (BAD_SEGMENT.test(seg)) return `Folder segment "${ seg }" contains invalid characters: : * ? " < > |`
+    if (RESERVED.test(seg)) return `Folder segment "${ seg }" is a reserved system name`
+  }
+  return null
+}
+
+/**
  * Sanitize a key string for use as a filesystem-safe filename segment.
  * @param {string} key
  */

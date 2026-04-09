@@ -8,6 +8,7 @@ const api = {
     set: (patch) => ipcRenderer.invoke(IPC.CONFIG_SET, patch),
     reset: () => ipcRenderer.invoke(IPC.CONFIG_RESET),
     path: () => ipcRenderer.invoke(IPC.CONFIG_PATH),
+    onChanged: (cb) => ipcRenderer.on(IPC.CONFIG_CHANGED, () => cb()),
   },
   brainSwap: () => ipcRenderer.invoke(IPC.BRAIN_SWAP),
   logs: {

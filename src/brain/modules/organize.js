@@ -1,5 +1,4 @@
-import path       from 'path'
-import { config } from '../config.js'
+import path from 'path'
 
 function matchRule (entry, rule) {
   const tagOk = !rule.tag || entry.tags?.some(t => t === rule.tag || t.startsWith(rule.tag + '/'))
@@ -7,7 +6,7 @@ function matchRule (entry, rule) {
   return (rule.tag || rule.field) && tagOk && fieldOk
 }
 
-export function resolveFolder (entry) {
+function resolveFolder (entry, config) {
   const org = config.organize
   if (!org?.useOrganize) return null
 
@@ -28,9 +27,11 @@ export function resolveFolder (entry) {
   return null
 }
 
-export function needsMove (entry, targetFolder) {
+function needsMove (entry, targetFolder, config) {
   if (!targetFolder || !entry.source_file) return false
   const rel = path.relative(config.vault, entry.source_file).replace(/\\/g, '/')
   const prefix = targetFolder.replace(/\\/g, '/') + '/'
   return !rel.startsWith(prefix)
 }
+
+export { resolveFolder, needsMove }

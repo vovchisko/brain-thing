@@ -1,5 +1,5 @@
 import { store }     from '../modules/store.js'
-import { config }    from '../config.js'
+import { cfg }       from '../config.js'
 import { createBus } from '../lib/bus.js'
 
 const bus = createBus('look_around')
@@ -20,10 +20,10 @@ export async function handleLookAround () {
   const projectList = [...projectCounts.entries()].sort((a, b) => b[1] - a[1])
   bus.info(`${ store.entries.size } entries, ${ projectList.length } projects`)
 
-  let result = `# ${ config.name }\n\n`
+  let result = `# ${ cfg.state.name }\n\n`
 
   // Guideline first
-  const guidelineName = config.guideline
+  const guidelineName = cfg.state.guideline
   if (guidelineName) {
     const entry = store.entries.get(guidelineName)
     if (entry) {

@@ -21,4 +21,5 @@ export const IPC = {
   MCP_UNREGISTER: 'mcp:unregister',
   AUTOSTART_GET: 'autostart:get',
   AUTOSTART_SET: 'autostart:set',
+  CONFIG_CHANGED: 'config:changed',
 }

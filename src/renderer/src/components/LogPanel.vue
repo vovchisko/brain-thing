@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, watch, ref, computed } from 'vue'
-import { logs, state }                   from '../state'
+import { logs, state }                   from '../state.js'
 
 const el = ref(null)
 

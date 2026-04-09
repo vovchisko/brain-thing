@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, ref, toRaw } from 'vue'
-import { FIELD_TYPE }               from '../../../shared/field-types'
-import { state }                    from '../state'
+import { computed, ref, toRaw, watch } from 'vue'
+import { FIELD_TYPE }  from '../../../shared/field-types.js'
+import { state }       from '../state.js'
+import { settings }    from './state.js'
 
 const TYPES = Object.values(FIELD_TYPE)
 
@@ -11,13 +12,12 @@ const saved = ref(false)
 
 const dirty = computed(() => JSON.stringify(fields.value) !== JSON.stringify(original.value))
 
-onMounted(async () => {
-  const cfg = await window.api.config.get()
-  if (cfg.fields) {
-    original.value = cfg.fields.map(f => ({ ...f }))
-    fields.value = cfg.fields.map(f => ({ ...f }))
+watch(() => settings.config.value?.fields, (f) => {
+  if (f) {
+    original.value = f.map(x => ({ ...x }))
+    fields.value = f.map(x => ({ ...x }))
   }
-})
+}, { immediate: true })
 
 const unconfigured = computed(() => {
   const configured = new Set(fields.value.map(f => f.name))
@@ -25,10 +25,8 @@ const unconfigured = computed(() => {
 })
 
 async function save () {
-  await window.api.config.set({ fields: toRaw(fields.value).map(f => ({ ...f })) })
-  original.value = fields.value.map(f => ({ ...f }))
+  await settings.saveAndSwap({ fields: toRaw(fields.value).map(f => ({ ...f })) })
   saved.value = true
-  window.api.brainSwap()
   setTimeout(() => (saved.value = false), 1500)
 }
 

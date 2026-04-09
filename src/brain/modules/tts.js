@@ -1,14 +1,14 @@
 import path                                               from 'path'
 import fs                                                 from 'fs'
-import { config }                                         from '../config.js'
 import { store }                                          from './store.js'
 import { chunkHash, chunkText, cleanForTts, jobChecksum } from '../lib/chunker.js'
 import { createBus } from '../lib/bus.js'
 
 const bus = createBus('tts')
 
-const TTS_URL = `http://${ config.tts.host }:${ config.tts.port }`
-const CHUNKS_FILE = path.join(config.dataDir || '.', 'tts-chunks.json')
+let _config = null
+let TTS_URL = null
+let CHUNKS_FILE = null
 
 /** In-memory chunk state per entry name */
 let chunkState = {}
@@ -55,10 +55,6 @@ async function send (name, chunks, { collection, voice, language } = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
-
-/**
- * Chunk an entry and update state. Returns chunk info.
- */
 function chunkEntry (entry) {
   const { collection, voice, language } = parseNarrate(entry.narrate)
   const { chunks, warnings } = chunkText(entry.content)
@@ -80,9 +76,6 @@ function chunkEntry (entry) {
   return state
 }
 
-/**
- * Chunk and send entry to TTS.
- */
 async function narrate (entry) {
   const opts = parseNarrate(entry.narrate)
   const state = chunkEntry(entry)
@@ -96,13 +89,16 @@ async function narrate (entry) {
   }
 }
 
-async function init () {
+async function init (config) {
+  _config = config
+  TTS_URL = `http://${ config.tts.host }:${ config.tts.port }`
+  CHUNKS_FILE = path.join(config.dataDir, 'tts-chunks.json')
+
   loadChunkState()
 
   const entries = [ ...store.entries ].filter(e => e.narrate && typeof e.narrate === 'string' && e.content?.trim())
   if (entries.length === 0) return
 
-  // Chunk all narrate entries on startup
   for (const entry of entries) {
     const state = chunkEntry(entry)
     if (state.warnings.length) {
@@ -113,7 +109,6 @@ async function init () {
   saveChunkState()
   bus.info('chunk', `Chunked ${ entries.length } entries`)
 
-  // Wait for TTS and sync
   bus.info('init', 'Waiting for TTS...')
   while (!await isRunning()) {
     await new Promise(r => setTimeout(r, 15_000))
@@ -141,7 +136,7 @@ async function onFilesChanged (filePaths) {
     const prev = chunkState[name]
     const state = chunkEntry(entry)
 
-    if (prev?.checksum === state.checksum) continue // no change
+    if (prev?.checksum === state.checksum) continue
 
     bus.info('chunk', `${ name } rechunked: ${ state.total } chunks`)
     if (state.warnings.length) {
