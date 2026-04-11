@@ -68,6 +68,14 @@ By default, new files are created in your vault root. To auto-sort them into fol
 
 This is purely file management. The AI works with entry names, not file paths.
 
+### Settings & sync
+
+Brain Thing stores vault-specific settings (fields, ignore rules, organize config, features, guideline) inside your vault at `.brain-thing/settings.json`. The vector cache also lives in `.brain-thing/vector-cache`.
+
+This means if you sync your vault across machines (Syncthing, Dropbox, etc.), your settings and embedding cache travel with it — same config everywhere, no re-indexing.
+
+Machine-specific settings (server port, window position, embedding model) stay in the app's local data folder.
+
 ### How it syncs
 
 Brain Thing watches your vault folder for changes. Both directions are live:
@@ -75,6 +83,7 @@ Brain Thing watches your vault folder for changes. Both directions are live:
 - Create/Edit in Obsidian → AI sees the update right away
 - Create/Edit through Claude → file appears in Obsidian immediately
 - Rename updates all `[[wikilinks]]` across the vault, same as Obsidian does
+- Settings changed on another machine → detected and applied automatically
 
 No import/export, no conflict resolution needed. You can have both open side by side.
 
@@ -88,7 +97,7 @@ Brain Thing runs as a standalone desktop app with its own HTTP server. The embed
 
 ## Under the Hood
 
-### MCP Tools (15)
+### MCP Tools (16)
 
 **Read & Search**
 
@@ -113,6 +122,7 @@ Brain Thing runs as a standalone desktop app with its own HTTP server. The embed
 | `insert` | Add text at start/end or before/after a marker |
 | `delete` | Remove entry and file |
 | `rename` | Rename entry; updates all wikilinks across the vault |
+| `project_config` | List, create, update, remove project configs |
 
 **Experimental:**
 
