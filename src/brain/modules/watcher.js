@@ -14,7 +14,7 @@ let activeWatcher = null
 function handleChange (eventType, filename, dir) {
   if (!filename || !filename.endsWith('.md')) return
   const fullPath = path.join(dir, filename)
-  if (shouldIgnore(fullPath, _config.ignore)) return
+  if (shouldIgnore(fullPath, _config.vault.ignore)) return
 
   pendingChanges.add(fullPath)
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -42,12 +42,12 @@ function start (config, callback) {
   _config = config
   onChangeCallback = callback
   try {
-    activeWatcher = watch(_config.vault, { recursive: true }, (eventType, filename) => {
-      handleChange(eventType, filename, _config.vault)
+    activeWatcher = watch(_config.system.vaultPath, { recursive: true }, (eventType, filename) => {
+      handleChange(eventType, filename, _config.system.vaultPath)
     })
-    bus.info('start', `Watching ${ _config.vault }`)
+    bus.info('start', `Watching ${ _config.system.vaultPath }`)
   } catch (err) {
-    bus.error('start', `Failed to watch ${ _config.vault }: ${ err.message }`)
+    bus.error('start', `Failed to watch ${ _config.system.vaultPath }: ${ err.message }`)
   }
 }
 

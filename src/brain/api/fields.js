@@ -48,7 +48,11 @@ export async function handleFields ({ tags, project } = {}) {
     }
   }
 
-  const typeDefs = cfg.state.fields || {}
+  const typeDefs = cfg.state.vault.fields || {}
+  const features = cfg.state.vault.features || {}
+  for (const [name, def] of Object.entries(typeDefs)) {
+    if (def.feature && !features[def.feature] && stats.has(name)) stats.delete(name)
+  }
   let response = `Fields across ${ entries.length } entries`
   if (tags?.length) response += ` [tags: ${ tags.join(', ') }]`
   if (project) response += ` [project: ${ project }]`

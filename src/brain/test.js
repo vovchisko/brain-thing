@@ -39,7 +39,6 @@ function seedVault () {
   writeFileSync(join(TEST_DIR, 'config.json'), JSON.stringify({
     v: 2,
     vaultPath: VAULT,
-    api: { port: 0, host: '127.0.0.1' },
     features: { tts: false },
     ignore: { folders: [], patterns: [] },
     organize: {
@@ -90,7 +89,7 @@ async function run () {
 
   seedVault()
 
-  fastify = await server.start(TEST_DIR)
+  fastify = await server.start(TEST_DIR, { skipListen: true })
   if (!fastify) { console.error('start() returned null'); process.exit(1) }
 
   const testsDir = join(BRAIN_DIR, 'test')

@@ -35,13 +35,13 @@ function findDesktopConfig () {
 }
 
 function getMcpEntry (config) {
-  if (config.resourcesPath) {
+  if (config.system.resourcesPath) {
     const ext = process.platform === 'win32' ? '.exe' : ''
-    return { command: join(config.resourcesPath, `brain-mcp${ ext }`) }
+    return { command: join(config.system.resourcesPath, `brain-mcp${ ext }`) }
   }
   return {
     command: 'node',
-    args: [join(config.brainDir, '..', 'mcp', 'mcp-server.js')],
+    args: [join(config.system.brainDir, '..', 'mcp', 'mcp-server.js')],
   }
 }
 
@@ -56,7 +56,7 @@ function getConfigPaths (config) {
 function isRegistered (configPath, config) {
   try {
     const cfg = parseJsonPermissive(readFileSync(configPath, 'utf-8'))
-    return !!cfg.mcpServers?.[config.name]
+    return !!cfg.mcpServers?.[config.system.name]
   } catch { return false }
 }
 
@@ -75,7 +75,7 @@ async function register (config) {
         else throw err
       }
       if (!cfg.mcpServers) cfg.mcpServers = {}
-      cfg.mcpServers[config.name] = e
+      cfg.mcpServers[config.system.name] = e
       await writeFile(path, JSON.stringify(cfg, null, 2), 'utf-8')
       bus.info('register', `${ label } enabled`)
       results.push({ label, ok: true })
@@ -100,8 +100,8 @@ async function unregister (config) {
         if (err.code === 'ENOENT') { results.push({ label, ok: true }); continue }
         else throw err
       }
-      if (cfg.mcpServers?.[config.name]) {
-        delete cfg.mcpServers[config.name]
+      if (cfg.mcpServers?.[config.system.name]) {
+        delete cfg.mcpServers[config.system.name]
         await writeFile(path, JSON.stringify(cfg, null, 2), 'utf-8')
         bus.info('register', `${ label } disabled`)
       }

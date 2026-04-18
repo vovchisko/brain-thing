@@ -1,42 +1,49 @@
-import { join }                                                          from 'path'
+import { join }                                                                  from 'path'
 import { existsSync, mkdirSync, readFileSync, unlinkSync, watch, writeFileSync } from 'fs'
-import crypto                                                            from 'node:crypto'
-import Signal                                                            from 'a-signal'
-import { FIELD }                                                         from './lib/field-types.js'
-import { APP_NAME, TOOLS }                                               from '../shared/constants.js'
+import crypto                                                                    from 'node:crypto'
+import Signal                                                                    from 'a-signal'
+import { FIELD }                                                                 from './lib/field-types.js'
+import { APP_NAME, TOOLS }                                                       from '../shared/constants.js'
+import { createBus }                                                             from './lib/bus.js'
+import { deepClone, deepFreeze }                                                 from './lib/utils.js'
 
 export { TOOLS }
+
+const bus = createBus('config', { system: true })
+
+const BRAIN_DIR = '.brain-thing'
 
 const CORE_FIELD_NAMES = new Set(['project', 'tags', 'created', 'modified', 'summary'])
 const TYPE_MAP = { string: FIELD.STRING, date: FIELD.DATE, number: FIELD.NUMBER, list: FIELD.LIST }
 
-const BRAIN_DIR = '.brain-thing'
+/** Keys that lived in app config before v4 migration but belong to vault settings */
+const VAULT_MIGRATION_KEYS = ['fields', 'ignore', 'organize', 'features', 'guidelineName']
 
-/** Keys stored in vault settings (synced across machines) */
-const VAULT_KEYS = new Set(['fields', 'ignore', 'organize', 'features', 'guidelineName'])
+/** Allowlists for public set() API */
+const SYSTEM_KEYS = new Set(['v', 'vaultPath', 'startMinimized', 'verboseConsole', 'windowBounds', 'name'])
+const VAULT_KEYS  = new Set(['guidelineName', 'features', 'fields', 'ignore', 'organize'])
 
-/**
- * App-level defaults — machine-specific, stored in <dataDir>/config.json.
- * Includes server ports, window prefs, embedding model config.
- */
-const APP_DEFAULTS = {
-  v: 3,
-  vaultPath: '',
-  startMinimized: false,
-  verboseConsole: false,
-  name: APP_NAME,
+/** Hardcoded values — no UI, no external override */
+export const CONSTANTS = deepFreeze({
   api: { port: 43000, host: '127.0.0.1' },
   tts: { port: 42033, host: '127.0.0.1' },
+  embeddings: { model: 'Xenova/multilingual-e5-large', dimensions: 1024 },
   skipLinkScan: ['tags', 'state', 'status', 'narrate'],
   frontmatterHead: ['name', 'project', 'tags'],
   frontmatterTail: ['created', 'modified', 'summary'],
-  embeddings: { model: 'Xenova/multilingual-e5-large', dimensions: 1024 },
+})
+
+const SYSTEM_DEFAULTS = {
+  v: 4,
+  vaultPath: '',
+  startMinimized: false,
+  verboseConsole: false,
+  // name: MCP identifier key in Claude's mcpServers config.
+  // Kept in system state (not constants) — UI for rename is planned, per-install value.
+  name: APP_NAME,
+  windowBounds: null,
 }
 
-/**
- * Vault-level defaults — stored in <vault>/.brain-thing/settings.json.
- * Synced across machines via Syncthing or similar.
- */
 const VAULT_DEFAULTS = {
   guidelineName: 'HOME',
   features: { tts: false },
@@ -72,57 +79,58 @@ const VAULT_DEFAULTS = {
     { name: 'priority', type: 'number', desc: 'Priority level' },
     { name: 'due',      type: 'date',   desc: 'Deadline' },
     { name: 'state',    type: 'string', desc: 'Document maturity' },
-    { name: 'narrate',  type: 'string', desc: 'TTS collection name' },
+    { name: 'narrate',  type: 'string', desc: 'TTS collection name', feature: 'tts' },
   ],
+}
+
+// --- Runtime states ---
+
+const systemState = {
+  vaultPath: '',
+  startMinimized: false,
+  verboseConsole: false,
+  name: APP_NAME,
+  windowBounds: null,
+  dataDir: null,
+  resourcesPath: null,
+  brainDir: null,
+  modelCacheDir: null,
+}
+
+const vaultState = {
+  guidelineName: VAULT_DEFAULTS.guidelineName,
+  features: deepClone(VAULT_DEFAULTS.features),
+  ignore: deepClone(VAULT_DEFAULTS.ignore),
+  organize: deepClone(VAULT_DEFAULTS.organize),
+  fields: buildFields(VAULT_DEFAULTS.fields),
+  vectorCacheDir: null,
+}
+
+const state = {
+  system: systemState,
+  vault: vaultState,
+  const: CONSTANTS,
 }
 
 // --- Signals ---
 
 const ready = new Signal({ late: true, memorable: true })
-const changed = new Signal()
+const systemChanged = new Signal()
+const vaultChanged = new Signal()
 
-// --- Mutable state ---
+// --- Module-level paths & watcher state ---
 
-const state = {
-  ...APP_DEFAULTS,
-  ...VAULT_DEFAULTS,
-  dataDir: null,
-  vault: null,
-  vectorCacheDir: null,
-  modelCacheDir: null,
-  resourcesPath: null,
-  brainDir: null,
-  _fields: {
-    project: FIELD.STRING.describe('Project grouping'),
-    tags: FIELD.LIST.describe('Hierarchical categorization'),
-    created: FIELD.DATE.describe('Auto-set on creation'),
-    modified: FIELD.DATE.describe('Auto-updated on every write'),
-    summary: FIELD.STRING.describe('Brief description for semantic indexing'),
-  },
-}
-
-Object.defineProperty(state, 'fields', {
-  get () { return state._fields },
-  set (v) { state._fields = v },
-})
-
-// --- Internal helpers ---
-
-let configPath = null
-let settingsPath = null
+let systemPath = null
+let vaultFilePath = null
 let settingsWatcher = null
 let lastSettingsHash = null
 let settingsDebounce = null
 
+// --- Helpers ---
+
 function loadJSON (filePath) {
   if (!filePath) return {}
   try { return JSON.parse(readFileSync(filePath, 'utf-8')) } catch { return {} }
-}
-
-/** Strip vault keys from app config to prevent cross-vault leaks */
-function stripVaultKeys (obj) {
-  for (const key of VAULT_KEYS) delete obj[key]
-  return obj
 }
 
 function saveJSON (filePath, data) {
@@ -134,9 +142,9 @@ function hashStr (str) {
   return crypto.createHash('sha256').update(str).digest('hex')
 }
 
-function ensureBrainDir (vaultPath) {
-  if (!vaultPath) return
-  const dir = join(vaultPath, BRAIN_DIR)
+function ensureBrainDir (vaultDir) {
+  if (!vaultDir) return
+  const dir = join(vaultDir, BRAIN_DIR)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 
@@ -150,25 +158,32 @@ function buildFields (arr = []) {
   }
   for (const def of arr) {
     const base = TYPE_MAP[def.type] || FIELD.STRING
-    fields[def.name] = def.desc ? base.describe(def.desc) : base
+    const field = base.describe(def.desc || '')
+    if (def.feature) field.feature = def.feature
+    fields[def.name] = field
   }
   return fields
 }
 
-function loadSettings () {
-  return loadJSON(settingsPath)
+// --- Migration (system config only) ---
+
+function isDefaultConstant (key, value) {
+  const def = CONSTANTS[key]
+  if (Array.isArray(def)) {
+    return Array.isArray(value) && value.length === def.length && value.every((x, i) => x === def[i])
+  }
+  if (key === 'api' || key === 'tts') {
+    return value && value.port === def.port && value.host === def.host
+  }
+  if (key === 'embeddings') {
+    return value && value.model === def.model && value.dimensions === def.dimensions
+  }
+  return true
 }
 
-function saveSettings (data) {
-  saveJSON(settingsPath, data)
-  try {
-    lastSettingsHash = hashStr(readFileSync(settingsPath, 'utf-8'))
-  } catch { /* ignore */ }
-}
-
-// --- Migration ---
-
-function migrateAppConfig (stored) {
+function migrateSystemConfig (stored) {
+  let changed = false
+  // v1 → v2: organize.scopes → organize.projects (legacy — only if organize still lives here)
   if (!stored.v || stored.v < 2) {
     if (stored.organize?.scopes) {
       const projects = {}
@@ -181,8 +196,9 @@ function migrateAppConfig (stored) {
       delete stored.organize.noScopeRules
     }
     stored.v = 2
-    saveJSON(configPath, stored)
+    changed = true
   }
+  // v2 → v3: flat project folder → { folder, rules }
   if (stored.v < 3) {
     if (stored.organize?.projects) {
       for (const [key, val] of Object.entries(stored.organize.projects)) {
@@ -192,24 +208,116 @@ function migrateAppConfig (stored) {
       }
     }
     stored.v = 3
-    saveJSON(configPath, stored)
+    changed = true
   }
-}
-
-/** Create settings.json — migrate from config.json once, then defaults for new vaults */
-function ensureSettingsFile (appStored) {
-  if (!settingsPath || existsSync(settingsPath)) return
-  const data = { ...VAULT_DEFAULTS }
-  if (!appStored._settingsMigrated) {
-    for (const key of VAULT_KEYS) {
-      if (key in appStored) data[key] = appStored[key]
+  // v3 → v4: drop now-constant keys, relocate vault keys to settings.json, drop legacy sentinel
+  if (stored.v < 4) {
+    for (const key of ['api', 'tts', 'embeddings', 'skipLinkScan', 'frontmatterHead', 'frontmatterTail']) {
+      if (key in stored) {
+        if (!isDefaultConstant(key, stored[key])) {
+          bus.warn('migrate', `${ key } override ${ JSON.stringify(stored[key]) } discarded — now a constant`)
+        }
+        delete stored[key]
+        changed = true
+      }
     }
-    saveJSON(configPath, { ...appStored, _settingsMigrated: true })
+    // Relocate any vault keys still sitting in app config to the vault's settings.json
+    if (stored.vaultPath) {
+      const legacyVaultFile = join(stored.vaultPath, BRAIN_DIR, 'settings.json')
+      if (!existsSync(legacyVaultFile)) {
+        try {
+          ensureBrainDir(stored.vaultPath)
+          const vaultData = { ...VAULT_DEFAULTS }
+          for (const key of VAULT_MIGRATION_KEYS) {
+            if (key in stored) vaultData[key] = stored[key]
+          }
+          saveJSON(legacyVaultFile, vaultData)
+        } catch (err) {
+          bus.warn('migrate', `vault key relocation failed: ${ err.message }`)
+        }
+      }
+    }
+    for (const key of VAULT_MIGRATION_KEYS) {
+      if (key in stored) { delete stored[key]; changed = true }
+    }
+    if ('_settingsMigrated' in stored) {
+      delete stored._settingsMigrated
+      changed = true
+    }
+    stored.v = 4
+    changed = true
   }
-  saveSettings(data)
+  if (changed) saveJSON(systemPath, stored)
+  return stored
 }
 
-// --- Settings watcher (external changes via Syncthing etc.) ---
+/** Seed settings.json with defaults if it doesn't exist. Legacy relocation happens in v3→v4 migration. */
+function ensureSettingsFile () {
+  if (!vaultFilePath || existsSync(vaultFilePath)) return
+  saveJSON(vaultFilePath, { ...VAULT_DEFAULTS })
+}
+
+function loadVaultFile () {
+  return loadJSON(vaultFilePath)
+}
+
+function saveVaultFile (data) {
+  saveJSON(vaultFilePath, data)
+  try { lastSettingsHash = hashStr(readFileSync(vaultFilePath, 'utf-8')) } catch { /* ignore */ }
+}
+
+// --- Apply ---
+
+function applySystemConfig () {
+  const stored = migrateSystemConfig(loadJSON(systemPath))
+  const merged = { ...SYSTEM_DEFAULTS, ...stored }
+
+  systemState.vaultPath = merged.vaultPath
+  systemState.startMinimized = merged.startMinimized
+  systemState.verboseConsole = merged.verboseConsole
+  systemState.name = merged.name
+  systemState.windowBounds = merged.windowBounds || null
+
+  if (systemState.dataDir) {
+    systemState.modelCacheDir = join(systemState.dataDir, 'models')
+  }
+}
+
+function applyVaultConfig () {
+  if (!systemState.vaultPath) {
+    vaultFilePath = null
+    vaultState.guidelineName = VAULT_DEFAULTS.guidelineName
+    vaultState.features = deepClone(VAULT_DEFAULTS.features)
+    vaultState.ignore = deepClone(VAULT_DEFAULTS.ignore)
+    vaultState.organize = deepClone(VAULT_DEFAULTS.organize)
+    vaultState.fields = buildFields(VAULT_DEFAULTS.fields)
+    vaultState.vectorCacheDir = null
+    lastSettingsHash = null
+    return
+  }
+  ensureBrainDir(systemState.vaultPath)
+  vaultFilePath = join(systemState.vaultPath, BRAIN_DIR, 'settings.json')
+
+  ensureSettingsFile()
+
+  const stored = loadVaultFile()
+  const merged = { ...VAULT_DEFAULTS, ...stored }
+
+  if (Array.isArray(merged.fields)) {
+    for (const f of merged.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
+  }
+
+  vaultState.guidelineName = merged.guidelineName
+  vaultState.features = deepClone(merged.features)
+  vaultState.ignore = deepClone(merged.ignore)
+  vaultState.organize = deepClone(merged.organize)
+  vaultState.fields = buildFields(merged.fields)
+  vaultState.vectorCacheDir = join(systemState.vaultPath, BRAIN_DIR, 'vector-cache')
+
+  try { lastSettingsHash = hashStr(readFileSync(vaultFilePath, 'utf-8')) } catch { /* ignore */ }
+}
+
+// --- External settings watcher ---
 
 function stopSettingsWatcher () {
   if (settingsWatcher) { settingsWatcher.close(); settingsWatcher = null }
@@ -218,9 +326,9 @@ function stopSettingsWatcher () {
 
 function startSettingsWatcher () {
   stopSettingsWatcher()
-  if (!state.vault) return
+  if (!systemState.vaultPath) return
 
-  const watchDir = join(state.vault, BRAIN_DIR)
+  const watchDir = join(systemState.vaultPath, BRAIN_DIR)
   if (!existsSync(watchDir)) return
 
   try {
@@ -229,124 +337,110 @@ function startSettingsWatcher () {
       if (settingsDebounce) clearTimeout(settingsDebounce)
       settingsDebounce = setTimeout(() => {
         try {
-          const raw = readFileSync(settingsPath, 'utf-8')
+          const raw = readFileSync(vaultFilePath, 'utf-8')
           const hash = hashStr(raw)
           if (hash === lastSettingsHash) return
           lastSettingsHash = hash
-          applyConfig()
-          changed.emit(state)
+          applyVaultConfig()
+          vaultChanged.emit(state)
         } catch { /* file gone or unreadable */ }
       }, 500)
     })
   } catch { /* dir unavailable */ }
 }
 
-// --- Apply ---
+// --- System API ---
 
-function applyConfig () {
-  const appStored = loadJSON(configPath)
-  migrateAppConfig(appStored)
-
-  const vaultPath = appStored.vaultPath || APP_DEFAULTS.vaultPath
-
-  if (vaultPath) {
-    ensureBrainDir(vaultPath)
-    settingsPath = join(vaultPath, BRAIN_DIR, 'settings.json')
-    ensureSettingsFile(appStored)
-  } else {
-    settingsPath = null
+function filterPatch (patch, allowed, scope) {
+  const out = {}
+  for (const [k, v] of Object.entries(patch)) {
+    if (allowed.has(k)) out[k] = v
+    else bus.warn('set', `${ scope }: unknown key "${ k }" dropped`)
   }
+  return out
+}
 
-  const vaultStored = loadSettings()
+function systemGet () {
+  const stored = loadJSON(systemPath)
+  return { ...SYSTEM_DEFAULTS, ...stored }
+}
 
-  const app = { ...APP_DEFAULTS, ...appStored }
-  const vault = { ...VAULT_DEFAULTS, ...vaultStored }
-
-  if (Array.isArray(vault.fields)) {
-    for (const f of vault.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
-  }
-
-  // App config
-  state.vaultPath = app.vaultPath
-  state.vault = app.vaultPath || null
-  state.name = app.name
-  state.api = app.api
-  state.tts = app.tts
-  state.skipLinkScan = app.skipLinkScan
-  state.frontmatterHead = app.frontmatterHead
-  state.frontmatterTail = app.frontmatterTail
-  state.embeddings = app.embeddings
-
-  // Vault settings
-  state.guideline = vault.guidelineName
-  state.features = vault.features
-  state.ignore = vault.ignore
-  state.organize = vault.organize
-  state._fields = buildFields(vault.fields)
-
-  // Paths
-  if (state.dataDir) {
-    state.modelCacheDir = join(state.dataDir, 'models')
-  }
-  if (state.vault) {
-    state.vectorCacheDir = join(state.vault, BRAIN_DIR, 'vector-cache')
+function systemSet (patch) {
+  const filtered = filterPatch(patch, SYSTEM_KEYS, 'system')
+  if (Object.keys(filtered).length === 0) return
+  const prevVaultPath = systemState.vaultPath
+  const current = loadJSON(systemPath)
+  saveJSON(systemPath, { ...SYSTEM_DEFAULTS, ...current, ...filtered })
+  applySystemConfig()
+  systemChanged.emit(state)
+  if (systemState.vaultPath !== prevVaultPath) {
+    applyVaultConfig()
+    startSettingsWatcher()
+    vaultChanged.emit(state)
   }
 }
 
-// --- Public API ---
-
-function init (dataDir) {
-  state.dataDir = dataDir
-  configPath = join(dataDir, 'config.json')
-  applyConfig()
-  startSettingsWatcher()
-  ready.emit(state)
+function systemReset () {
+  if (systemPath && existsSync(systemPath)) unlinkSync(systemPath)
+  const prevVaultPath = systemState.vaultPath
+  applySystemConfig()
+  systemChanged.emit(state)
+  if (systemState.vaultPath !== prevVaultPath) {
+    stopSettingsWatcher()
+    applyVaultConfig()
+    vaultChanged.emit(state)
+  }
 }
 
-function get () {
-  const appStored = stripVaultKeys(loadJSON(configPath))
-  const vaultStored = loadSettings()
-  const merged = { ...APP_DEFAULTS, ...VAULT_DEFAULTS, ...appStored, ...vaultStored }
+// --- Vault API ---
+
+function vaultGet () {
+  const stored = loadVaultFile()
+  const merged = { ...VAULT_DEFAULTS, ...stored }
   if (Array.isArray(merged.fields)) {
     for (const f of merged.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
   }
   return merged
 }
 
-function set (patch) {
-  const appPatch = {}
-  const vaultPatch = {}
-  for (const [key, value] of Object.entries(patch)) {
-    if (VAULT_KEYS.has(key)) vaultPatch[key] = value
-    else appPatch[key] = value
-  }
-
-  if (Object.keys(appPatch).length) {
-    const current = stripVaultKeys(loadJSON(configPath))
-    saveJSON(configPath, { ...APP_DEFAULTS, ...current, ...appPatch })
-  }
-
-  if (Object.keys(vaultPatch).length && settingsPath) {
-    const current = loadSettings()
-    saveSettings({ ...VAULT_DEFAULTS, ...current, ...vaultPatch })
-  }
-
-  const prevVault = state.vault
-  applyConfig()
-  if (state.vault !== prevVault) startSettingsWatcher()
-  changed.emit(state)
+function vaultSet (patch) {
+  if (!vaultFilePath) return
+  const filtered = filterPatch(patch, VAULT_KEYS, 'vault')
+  if (Object.keys(filtered).length === 0) return
+  const current = loadVaultFile()
+  saveVaultFile({ ...VAULT_DEFAULTS, ...current, ...filtered })
+  applyVaultConfig()
+  vaultChanged.emit(state)
 }
 
-function reset () {
-  if (configPath && existsSync(configPath)) unlinkSync(configPath)
-  if (settingsPath && existsSync(settingsPath)) unlinkSync(settingsPath)
-  stopSettingsWatcher()
-  applyConfig()
-  changed.emit(state)
+function vaultReset () {
+  if (vaultFilePath && existsSync(vaultFilePath)) unlinkSync(vaultFilePath)
+  applyVaultConfig()
+  vaultChanged.emit(state)
 }
 
-function getPath () {
-  return configPath
+// --- Init ---
+
+function init (dataDir) {
+  systemState.dataDir = dataDir
+  systemPath = join(dataDir, 'config.json')
+  applySystemConfig()
+  applyVaultConfig()
+  startSettingsWatcher()
+  ready.emit(state)
 }
 
-export const cfg = { ready, changed, state, init, get, set, reset, getPath }
+function getPath (scope) {
+  if (scope === 'system') return systemPath
+  if (scope === 'vault') return vaultFilePath
+  return { system: systemPath, vault: vaultFilePath }
+}
+
+export const cfg = {
+  state,
+  ready,
+  init,
+  getPath,
+  system: { get: systemGet, set: systemSet, reset: systemReset, changed: systemChanged },
+  vault:  { get: vaultGet,  set: vaultSet,  reset: vaultReset,  changed: vaultChanged },
+}

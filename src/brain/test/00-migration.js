@@ -49,4 +49,35 @@ export default async function ({ assert }) {
   assert(v1.organize.projects.MyScope === 'MyFolder', 'v1→v2: scope→project')
   assert(v1.organize.rules[0].tag === 'fallback', 'v1→v2: fallback rules')
   assert(!v1.organize.scopes, 'v1→v2: scopes removed')
+
+  // Test v3 → v4 migration logic: drop now-constant keys + _settingsMigrated sentinel
+  const v3 = {
+    v: 3,
+    vaultPath: '/some/path',
+    startMinimized: false,
+    _settingsMigrated: true,
+    api: { port: 43001, host: '127.0.0.1' },       // non-default
+    tts: { port: 42033, host: '127.0.0.1' },       // default
+    embeddings: { model: 'custom/model', dimensions: 512 },
+    skipLinkScan: ['tags'],
+    frontmatterHead: ['name'],
+    frontmatterTail: ['created'],
+  }
+
+  for (const key of ['api', 'tts', 'embeddings', 'skipLinkScan', 'frontmatterHead', 'frontmatterTail']) {
+    delete v3[key]
+  }
+  if ('_settingsMigrated' in v3) delete v3._settingsMigrated
+  v3.v = 4
+
+  assert(v3.v === 4, 'v3→v4: version bumped')
+  assert(!('api' in v3), 'v3→v4: api removed')
+  assert(!('tts' in v3), 'v3→v4: tts removed')
+  assert(!('embeddings' in v3), 'v3→v4: embeddings removed')
+  assert(!('skipLinkScan' in v3), 'v3→v4: skipLinkScan removed')
+  assert(!('frontmatterHead' in v3), 'v3→v4: frontmatterHead removed')
+  assert(!('frontmatterTail' in v3), 'v3→v4: frontmatterTail removed')
+  assert(!('_settingsMigrated' in v3), 'v3→v4: _settingsMigrated sentinel removed')
+  assert(v3.vaultPath === '/some/path', 'v3→v4: system keys preserved')
+  assert(v3.startMinimized === false, 'v3→v4: startMinimized preserved')
 }

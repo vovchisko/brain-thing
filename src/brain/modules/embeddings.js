@@ -11,7 +11,7 @@ let _config = null
 const accessedHashes = new Set()
 
 function cacheDir () {
-  return _config?.vectorCacheDir || '.vector-cache'
+  return _config?.vault?.vectorCacheDir || '.vector-cache'
 }
 
 async function ensureCacheDir () {
@@ -50,9 +50,9 @@ let _onProgress = null
 
 async function init (config) {
   _config = config
-  const modelCache = config.modelCacheDir || undefined
-  bus.info('init', `Loading model: ${ config.embeddings.model }${ modelCache ? ` (cache: ${ modelCache })` : '' }`)
-  embedder = await pipeline('feature-extraction', config.embeddings.model, {
+  const modelCache = config.system.modelCacheDir || undefined
+  bus.info('init', `Loading model: ${ config.const.embeddings.model }${ modelCache ? ` (cache: ${ modelCache })` : '' }`)
+  embedder = await pipeline('feature-extraction', config.const.embeddings.model, {
     cache_dir: modelCache,
     progress_callback: (data) => {
       if (_onProgress) _onProgress(data)

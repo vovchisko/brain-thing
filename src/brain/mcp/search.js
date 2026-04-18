@@ -4,6 +4,8 @@ export const tool = {
   name: TOOLS.SEARCH,
   description: `Search entries by field values.
 
+Returns a list with project/tags, a short preview, and word count — use \`get\` to read full content.
+
 Use "fields" tool to discover available fields and their types.
 
 Each filter: { field, value, op? }
@@ -35,5 +37,7 @@ Each filter: { field, value, op? }
     required: ['filters'],
   },
 }
+
+export const injectFields = 'search'
 
 export const route = { method: 'POST', path: TOOLS.SEARCH }

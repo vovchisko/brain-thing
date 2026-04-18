@@ -4,14 +4,13 @@ export const tool = {
   name: TOOLS.WHAT_IS,
   description: `Semantic search - finds entries by meaning, not just keywords.
 
-High-confidence match (score ≥80%): returns full entry (frontmatter + entire content) — no follow-up "get" needed.
-Low-confidence matches: returns a ranked list with names, tags, and similarity scores.
+Always returns a ranked list (up to 5) with score, project/tags, a short preview, and word count. To read an entry's full content, follow up with the \`get\` tool.
 
 Usage:
 - Describe what you're looking for in natural language
 - Works even if you don't know exact terminology
 - Filter by tags or project to narrow results
-- Exact name match returns full entry immediately`,
+- Word count helps estimate how much content a \`get\` will return`,
   inputSchema: {
     type: 'object',
     properties: {

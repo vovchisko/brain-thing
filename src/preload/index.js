@@ -4,11 +4,19 @@ import { IPC }                        from '../shared/ipc'
 
 const api = {
   config: {
-    get: () => ipcRenderer.invoke(IPC.CONFIG_GET),
-    set: (patch) => ipcRenderer.invoke(IPC.CONFIG_SET, patch),
-    reset: () => ipcRenderer.invoke(IPC.CONFIG_RESET),
-    path: () => ipcRenderer.invoke(IPC.CONFIG_PATH),
-    onChanged: (cb) => ipcRenderer.on(IPC.CONFIG_CHANGED, () => cb()),
+    system: {
+      get: () => ipcRenderer.invoke(IPC.CONFIG_SYSTEM_GET),
+      set: (patch) => ipcRenderer.invoke(IPC.CONFIG_SYSTEM_SET, patch),
+      reset: () => ipcRenderer.invoke(IPC.CONFIG_SYSTEM_RESET),
+      onChanged: (cb) => ipcRenderer.on(IPC.CONFIG_SYSTEM_CHANGED, () => cb()),
+    },
+    vault: {
+      get: () => ipcRenderer.invoke(IPC.CONFIG_VAULT_GET),
+      set: (patch) => ipcRenderer.invoke(IPC.CONFIG_VAULT_SET, patch),
+      reset: () => ipcRenderer.invoke(IPC.CONFIG_VAULT_RESET),
+      onChanged: (cb) => ipcRenderer.on(IPC.CONFIG_VAULT_CHANGED, () => cb()),
+    },
+    paths: () => ipcRenderer.invoke(IPC.CONFIG_PATHS),
   },
   brainSwap: () => ipcRenderer.invoke(IPC.BRAIN_SWAP),
   logs: {

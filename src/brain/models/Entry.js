@@ -1,3 +1,5 @@
+import { countWords } from '../lib/utils.js'
+
 /**
  * @typedef {Object} EntryData
  * @property {string} name
@@ -26,6 +28,14 @@ export class Entry {
     this.modified = data.modified || null
     this.summary = data.summary || null
     this.content = data.content
+
+    // Non-enumerable so wordCount never leaks into frontmatter dumps, field stats, or searchable text
+    Object.defineProperty(this, 'wordCount', {
+      value: countWords(data.content),
+      writable: true,
+      enumerable: false,
+      configurable: true,
+    })
 
     // Preserve extra frontmatter fields (action_id, status, hand, etc.)
     for (const [ key, value ] of Object.entries(data)) {

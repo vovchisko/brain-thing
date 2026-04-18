@@ -18,4 +18,5 @@ export const TOOLS = Object.freeze({
   NARRATE: 'narrate',
   DIAGNOSTIC: 'diagnostic',
   PROJECT_CONFIG: 'project_config',
+  LONG_READ: 'long_read',
 })

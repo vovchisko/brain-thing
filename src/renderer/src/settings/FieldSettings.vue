@@ -12,7 +12,7 @@ const saved = ref(false)
 
 const dirty = computed(() => JSON.stringify(fields.value) !== JSON.stringify(original.value))
 
-watch(() => settings.config.value?.fields, (f) => {
+watch(() => settings.vault.value?.fields, (f) => {
   if (f) {
     original.value = f.map(x => ({ ...x }))
     fields.value = f.map(x => ({ ...x }))
@@ -25,7 +25,7 @@ const unconfigured = computed(() => {
 })
 
 async function save () {
-  await settings.saveAndSwap({ fields: toRaw(fields.value).map(f => ({ ...f })) })
+  await settings.saveVaultAndSwap({ fields: toRaw(fields.value).map(f => ({ ...f })) })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }

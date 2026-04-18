@@ -4,7 +4,7 @@ export const tool = {
   name: TOOLS.UPDATE,
   description: `Update entry fields.
 
-Any field can be updated except read-only ones (name, source_file, content_hash).
+Any field can be updated except read-only ones (name, source_file, content_hash, created, modified — both dates are auto-managed).
 Array fields (tags, aliases, related) must be arrays.
 
 Usage:
@@ -12,7 +12,7 @@ Usage:
 - Arrays replace entirely, not merge
 - Use "get" first to see current values before updating
 
-Example: fields: [{property: "tags", value: ["lore/character"]}, {property: "state", value: "draft"}]`,
+Example: fields: [{property: "project", value: "Work"}, {property: "tags", value: ["work/task"]}, {property: "state", value: "draft"}]`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -33,5 +33,7 @@ Example: fields: [{property: "tags", value: ["lore/character"]}, {property: "sta
     required: [ 'name', 'fields' ],
   },
 }
+
+export const injectFields = 'write'
 
 export const route = { method: 'POST', path: TOOLS.UPDATE }

@@ -1,21 +1,36 @@
 import { ref } from 'vue'
 
-const config = ref(null)
+const system = ref(null)
+const vault = ref(null)
+
+async function loadSystem () { system.value = await window.api.config.system.get() }
+async function loadVault  () { vault.value  = await window.api.config.vault.get() }
 
 async function load () {
-  config.value = await window.api.config.get()
+  await Promise.all([loadSystem(), loadVault()])
 }
 
-async function save (patch) {
-  await window.api.config.set(patch)
-  await load()
+async function saveSystem (patch) {
+  await window.api.config.system.set(patch)
+  await loadSystem()
 }
 
-async function saveAndSwap (patch) {
-  await save(patch)
+async function saveSystemAndSwap (patch) {
+  await saveSystem(patch)
   window.api.brainSwap()
 }
 
-window.api.config.onChanged(load)
+async function saveVault (patch) {
+  await window.api.config.vault.set(patch)
+  await loadVault()
+}
 
-export const settings = { config, load, save, saveAndSwap }
+async function saveVaultAndSwap (patch) {
+  await saveVault(patch)
+  window.api.brainSwap()
+}
+
+window.api.config.system.onChanged(loadSystem)
+window.api.config.vault.onChanged(loadVault)
+
+export const settings = { system, vault, load, saveSystem, saveSystemAndSwap, saveVault, saveVaultAndSwap }

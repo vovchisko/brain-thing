@@ -7,7 +7,7 @@ function matchRule (entry, rule) {
 }
 
 function resolveFolder (entry, config) {
-  const org = config.organize
+  const org = config.vault.organize
   if (!org?.useOrganize) return null
 
   if (entry.project) {
@@ -29,7 +29,7 @@ function resolveFolder (entry, config) {
 
 function needsMove (entry, targetFolder, config) {
   if (!targetFolder || !entry.source_file) return false
-  const rel = path.relative(config.vault, entry.source_file).replace(/\\/g, '/')
+  const rel = path.relative(config.system.vaultPath, entry.source_file).replace(/\\/g, '/')
   const prefix = targetFolder.replace(/\\/g, '/') + '/'
   return !rel.startsWith(prefix)
 }

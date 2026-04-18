@@ -1,8 +1,9 @@
-import { store }      from '../modules/store.js'
-import { cfg }        from '../config.js'
-import { ApiError }   from '../lib/api.js'
-import { FieldType }  from '../lib/field-types.js'
-import { createBus }  from '../lib/bus.js'
+import { store }            from '../modules/store.js'
+import { cfg }              from '../config.js'
+import { ApiError }         from '../lib/api.js'
+import { FieldType }        from '../lib/field-types.js'
+import { formatResultList } from './_helpers.js'
+import { createBus }        from '../lib/bus.js'
 
 const bus = createBus('search')
 
@@ -10,8 +11,20 @@ const DEFAULT_LIMIT = 50
 
 const fallback = new FieldType()
 
+const OPS_BY_TYPE = {
+  string: new Set(['$eq']),
+  date: new Set(['$eq', '$gt', '$gte', '$lt', '$lte']),
+  number: new Set(['$eq', '$gt', '$gte', '$lt', '$lte']),
+  list: new Set(['$eq', '$any', '$all']),
+}
+
 function getType (field) {
-  return cfg.state.fields?.[field] || fallback
+  return cfg.state.vault.fields?.[field] || fallback
+}
+
+function fieldExistsInAnyEntry (field) {
+  for (const e of store.entries) if (field in e) return true
+  return false
 }
 
 /**
@@ -31,6 +44,27 @@ export async function handleSearch ({ filters, tags, project, limit } = {}) {
   for (const f of filters) {
     if (!f.field || f.value === undefined) {
       throw new ApiError(400, `Invalid filter: each must have "field" and "value"`)
+    }
+  }
+
+  // Pre-validate: type + op compatibility, field existence
+  for (const f of filters) {
+    const op = f.op || '$eq'
+    const type = getType(f.field)
+    const configured = !!cfg.state.vault.fields?.[f.field]
+    const supportedOps = OPS_BY_TYPE[type.type] || OPS_BY_TYPE.string
+
+    if (!configured && !fieldExistsInAnyEntry(f.field)) {
+      ev.warn('unknown field')
+      return { text: `Field "${ f.field }" not found in any entry. Use the fields tool to see available fields.` }
+    }
+    if (!supportedOps.has(op)) {
+      ev.warn('bad op')
+      const ops = [ ...supportedOps ].join(', ')
+      const hint = configured
+        ? `Field "${ f.field }" is type "${ type.type }"; operator "${ op }" not supported. Allowed: ${ ops }.`
+        : `Field "${ f.field }" has no configured type (treated as string); operator "${ op }" not supported. Allowed: ${ ops }. Configure the field type in Settings → Fields to enable richer operators.`
+      return { text: hint }
     }
   }
 
@@ -66,26 +100,11 @@ export async function handleSearch ({ filters, tags, project, limit } = {}) {
     return { text: `No entries match filters: ${ filterFields.join(', ') }` }
   }
 
-  let response = `Found ${ results.length } entries`
-  if (results.length >= maxResults) response += ` (limit: ${ maxResults })`
-  response += ':\n'
+  let header = `Found ${ results.length } entries`
+  if (results.length >= maxResults) header += ` (limit: ${ maxResults })`
 
-  for (const entry of results) {
-    const meta = []
-    if (entry.tags?.length) meta.push(entry.tags[0])
-
-    for (const field of filterFields) {
-      const val = entry[field]
-      if (val != null) {
-        const display = val instanceof Date ? val.toISOString().slice(0, 10) : val
-        meta.push(`${ field }: ${ display }`)
-      }
-    }
-
-    response += `\n- [[${ entry.name }]]`
-    if (meta.length) response += ` (${ meta.join(', ') })`
-  }
-
-  ev.ok(`${ results.length } entries`)
-  return { text: response }
+  const projectFiltered = !!project || filters.some(f => f.field === 'project')
+  const body = formatResultList(results, { hideProject: projectFiltered })
+  ev.ok(`${ results.length } entries`, ...body.split('\n'))
+  return { text: `${ header }:\n\n${ body }\n\nUse \`get\` to read full content.` }
 }

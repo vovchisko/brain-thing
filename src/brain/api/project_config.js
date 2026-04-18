@@ -20,7 +20,7 @@ function formatProject (key, proj) {
 
 export async function handleProjectConfig ({ project, folder, rules, remove } = {}) {
   const config = cfg.state
-  const projects = config.organize?.projects || {}
+  const projects = config.vault.organize?.projects || {}
 
   // List
   if (!project) {
@@ -39,7 +39,7 @@ export async function handleProjectConfig ({ project, folder, rules, remove } = 
     }
     const updated = { ...projects }
     delete updated[project]
-    cfg.set({ organize: { ...config.organize, projects: updated } })
+    cfg.vault.set({ organize: { ...config.vault.organize, projects: updated } })
     bus.info(project, 'removed')
     return { text: `Project "${ project }" removed from config. Entries with project: "${ project }" are untouched.` }
   }
@@ -70,7 +70,7 @@ export async function handleProjectConfig ({ project, folder, rules, remove } = 
   const isNew = !projects[project]
   const entry = { folder, rules: rules || projects[project]?.rules || [] }
   const updated = { ...projects, [project]: entry }
-  cfg.set({ organize: { ...config.organize, projects: updated } })
+  cfg.vault.set({ organize: { ...config.vault.organize, projects: updated } })
 
   const ev = bus.op(project, folder)
   const parts = [isNew ? `Created project "${ project }"` : `Updated project "${ project }"`]

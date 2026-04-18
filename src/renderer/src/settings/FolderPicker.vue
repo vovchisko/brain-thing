@@ -12,7 +12,7 @@ const oldHasFiles = ref(false)
 const dirty = computed(() => folder.value && folder.value !== current.value)
 const hasCurrentVault = computed(() => !!current.value)
 
-watch(() => settings.config.value?.vaultPath, (v) => {
+watch(() => settings.system.value?.vaultPath, (v) => {
   if (v) { folder.value = v; current.value = v }
 }, { immediate: true })
 
@@ -59,7 +59,7 @@ async function move () {
 }
 
 async function applyFolder (path) {
-  await settings.saveAndSwap({ vaultPath: path })
+  await settings.saveSystemAndSwap({ vaultPath: path })
   oldHasFiles.value = false
   saved.value = true
   error.value = ''

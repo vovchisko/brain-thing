@@ -7,7 +7,7 @@ const current = ref('')
 const saved = ref(false)
 const dirty = computed(() => name.value !== current.value)
 
-watch(() => settings.config.value?.guidelineName, (v) => {
+watch(() => settings.vault.value?.guidelineName, (v) => {
   const val = v || 'HOME'
   name.value = val
   current.value = val
@@ -16,7 +16,7 @@ watch(() => settings.config.value?.guidelineName, (v) => {
 async function apply () {
   const val = name.value.trim()
   if (!val) return
-  await settings.saveAndSwap({ guidelineName: val })
+  await settings.saveVaultAndSwap({ guidelineName: val })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }

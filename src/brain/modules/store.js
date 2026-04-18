@@ -50,11 +50,11 @@ const ready = new Signal({ late: true })
 function init (config) {
   _config = config
   _entries = new VectorCollection(Entry, {
-    vectorDimensions: config.embeddings.dimensions,
+    vectorDimensions: config.const.embeddings.dimensions,
   })
   SKIP_FIELDS = new Set([
     'name', 'source_file', 'content_hash',
-    ...config.skipLinkScan || [],
+    ...config.const.skipLinkScan || [],
   ])
 }
 
@@ -101,7 +101,7 @@ function findBacklinks (targetName) {
     const matches = [ ...collectSearchableText(entry).matchAll(pattern) ]
     for (const match of matches) {
       if (matchesTarget(match[1], targetEntry)) {
-        backlinks.push({ name: entry.name })
+        backlinks.push(entry)
         seen.add(entry.name)
         break
       }

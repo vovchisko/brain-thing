@@ -1,8 +1,8 @@
-import { obsidian }                from '../modules/obsidian.js'
-import { validateName }            from '../lib/utils.js'
-import { ApiError }                from '../lib/api.js'
-import { findEntry, markSeen }     from './_helpers.js'
-import { createBus }               from '../lib/bus.js'
+import { obsidian }                           from '../modules/obsidian.js'
+import { validateName }                       from '../lib/utils.js'
+import { ApiError }                           from '../lib/api.js'
+import { findEntry, markSeen, typeWarnings }  from './_helpers.js'
+import { createBus }                          from '../lib/bus.js'
 
 const bus = createBus('create')
 
@@ -22,6 +22,7 @@ export async function handleCreate ({ name, content, tags, ...rest }) {
   }
 
   const props = { ...rest, tags }
+  const warnings = typeWarnings(props)
 
   const meta = [tags[0], rest.project].filter(Boolean).join(', ')
   const ev = bus.op(name, meta)
@@ -29,7 +30,9 @@ export async function handleCreate ({ name, content, tags, ...rest }) {
     await obsidian.createFile(name, content, props)
     markSeen(findEntry(name))
     ev.ok('created')
-    return { text: `Created "${ name }"` }
+    let text = `Created "${ name }"`
+    if (warnings.length) text += `\n\nWarnings:\n- ${ warnings.join('\n- ') }`
+    return { text }
   } catch (err) {
     if (err.message?.includes('already exists')) {
       ev.warn('already exists')

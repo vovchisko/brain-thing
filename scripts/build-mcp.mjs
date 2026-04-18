@@ -45,6 +45,10 @@ if (process.platform === 'win32') {
     `npx postject "${target}" NODE_SEA_BLOB out/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`,
     { cwd: root, stdio: 'inherit' },
   )
+  // macOS (esp. Apple Silicon) refuses to run unsigned Mach-O; ad-hoc sign is enough for local distribution
+  if (process.platform === 'darwin') {
+    execSync(`codesign --sign - --force --options runtime "${target}"`, { stdio: 'inherit' })
+  }
 }
 
 console.log(`[mcp] Built: ${target}`)

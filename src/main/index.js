@@ -60,17 +60,18 @@ server.onIssues    = (d) => pushStat(IPC.STAT_ISSUES, 'issues', d)
 server.onFields    = (d) => pushStat(IPC.STAT_FIELDS, 'fields', d)
 server.onProjects  = (d) => pushStat(IPC.STAT_PROJECTS, 'projects', d)
 server.onLiveCount = (n) => pushStat(IPC.STAT_ENTRIES, 'entries', n)
-server.onConfigChanged = () => {
+server.onConfigChanged = (scope) => {
+  const channel = scope === 'system' ? IPC.CONFIG_SYSTEM_CHANGED : IPC.CONFIG_VAULT_CHANGED
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC.CONFIG_CHANGED)
+    if (!win.isDestroyed()) win.webContents.send(channel)
   }
 }
 
 // --- Init ---
 const dataDir = app.getPath('userData')
 cfg.init(dataDir)
-cfg.state.resourcesPath = app.isPackaged ? process.resourcesPath : null
-cfg.state.brainDir = join(app.getAppPath(), 'src', 'brain')
+cfg.state.system.resourcesPath = app.isPackaged ? process.resourcesPath : null
+cfg.state.system.brainDir = join(app.getAppPath(), 'src', 'brain')
 
 // --- Window ---
 let mainWindow
@@ -83,7 +84,7 @@ function createWindow () {
     return
   }
 
-  const wb = cfg.get().windowBounds || {}
+  const wb = cfg.system.get().windowBounds || {}
 
   mainWindow = new BrowserWindow({
     width: wb.width || 900,
@@ -101,7 +102,7 @@ function createWindow () {
     },
   })
 
-  const saveBounds = () => cfg.set({ windowBounds: mainWindow.getBounds() })
+  const saveBounds = () => cfg.system.set({ windowBounds: mainWindow.getBounds() })
   mainWindow.on('resized', saveBounds)
   mainWindow.on('moved', saveBounds)
 
@@ -140,10 +141,13 @@ app.whenReady().then(() => {
   })
 
   // Config IPC — delegates to brain/config.js
-  ipcMain.handle(IPC.CONFIG_GET, () => cfg.get())
-  ipcMain.handle(IPC.CONFIG_SET, (_e, patch) => cfg.set(patch))
-  ipcMain.handle(IPC.CONFIG_RESET, () => cfg.reset())
-  ipcMain.handle(IPC.CONFIG_PATH, () => cfg.getPath())
+  ipcMain.handle(IPC.CONFIG_SYSTEM_GET, () => cfg.system.get())
+  ipcMain.handle(IPC.CONFIG_SYSTEM_SET, (_e, patch) => cfg.system.set(patch))
+  ipcMain.handle(IPC.CONFIG_SYSTEM_RESET, () => cfg.system.reset())
+  ipcMain.handle(IPC.CONFIG_VAULT_GET, () => cfg.vault.get())
+  ipcMain.handle(IPC.CONFIG_VAULT_SET, (_e, patch) => cfg.vault.set(patch))
+  ipcMain.handle(IPC.CONFIG_VAULT_RESET, () => cfg.vault.reset())
+  ipcMain.handle(IPC.CONFIG_PATHS, () => cfg.getPath())
 
   // FS helpers
   ipcMain.handle(IPC.FS_IS_DIR, (_e, p) => {
@@ -184,7 +188,7 @@ app.whenReady().then(() => {
   })
 
   createTray(icon, createWindow)
-  if (!is.dev && cfg.get().startMinimized) {
+  if (!is.dev && cfg.system.get().startMinimized) {
     // Start in tray only — tray click will create window
   } else {
     createWindow()

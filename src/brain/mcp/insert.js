@@ -13,6 +13,11 @@ position + marker combinations:
 - "before" + marker — insert before the marker string
 - "after" + marker — insert after the marker string
 
+No whitespace is added automatically — include any needed "\\n" in your text yourself. Examples:
+- "\\n\\nNew paragraph." — append as a new paragraph
+- " and more." — continue the last line inline
+- "Header line\\n\\n" (prepend) — add header above existing content
+
 Marker must appear exactly once in content — use "get" first to find unique text.`,
   inputSchema: {
     type: 'object',

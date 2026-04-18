@@ -32,18 +32,18 @@ async function toggleAutostart () {
 }
 
 async function toggleStartMinimized () {
-  await settings.save({ startMinimized: !settings.config.value.startMinimized })
+  await settings.saveSystem({ startMinimized: !settings.system.value.startMinimized })
 }
 
 async function toggleVerbose () {
-  const v = !settings.config.value.verboseConsole
-  await settings.save({ verboseConsole: v })
+  const v = !settings.system.value.verboseConsole
+  await settings.saveSystem({ verboseConsole: v })
   state.verboseConsole = v
 }
 </script>
 
 <template>
-  <template v-if="settings.config.value">
+  <template v-if="settings.system.value">
     <FolderPicker />
     <GuidelineName />
     <div class="general_row">
@@ -76,8 +76,8 @@ async function toggleVerbose () {
         <div class="general_row_name">Start minimized</div>
         <div class="g-hint">Start in system tray without opening the window.</div>
       </div>
-      <button class="g-btn general_row_toggle" :class="{ _on: settings.config.value.startMinimized }" @click="toggleStartMinimized">
-        {{ settings.config.value.startMinimized ? 'ON' : 'OFF' }}
+      <button class="g-btn general_row_toggle" :class="{ _on: settings.system.value.startMinimized }" @click="toggleStartMinimized">
+        {{ settings.system.value.startMinimized ? 'ON' : 'OFF' }}
       </button>
     </div>
     <div class="general_row">
@@ -85,8 +85,8 @@ async function toggleVerbose () {
         <div class="general_row_name">Verbose console</div>
         <div class="g-hint">Show internal system events (import, watcher, diagnostics) in the log panel.</div>
       </div>
-      <button class="g-btn general_row_toggle" :class="{ _on: settings.config.value.verboseConsole }" @click="toggleVerbose">
-        {{ settings.config.value.verboseConsole ? 'ON' : 'OFF' }}
+      <button class="g-btn general_row_toggle" :class="{ _on: settings.system.value.verboseConsole }" @click="toggleVerbose">
+        {{ settings.system.value.verboseConsole ? 'ON' : 'OFF' }}
       </button>
     </div>
   </template>

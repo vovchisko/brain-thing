@@ -1,8 +1,13 @@
 export const IPC = {
-  CONFIG_GET: 'config:get',
-  CONFIG_SET: 'config:set',
-  CONFIG_RESET: 'config:reset',
-  CONFIG_PATH: 'config:path',
+  CONFIG_SYSTEM_GET: 'config:system:get',
+  CONFIG_SYSTEM_SET: 'config:system:set',
+  CONFIG_SYSTEM_RESET: 'config:system:reset',
+  CONFIG_SYSTEM_CHANGED: 'config:system:changed',
+  CONFIG_VAULT_GET: 'config:vault:get',
+  CONFIG_VAULT_SET: 'config:vault:set',
+  CONFIG_VAULT_RESET: 'config:vault:reset',
+  CONFIG_VAULT_CHANGED: 'config:vault:changed',
+  CONFIG_PATHS: 'config:paths',
   FS_IS_DIR: 'fs:is-directory',
   FS_IS_EMPTY: 'fs:is-empty',
   FS_MOVE_VAULT: 'fs:move-vault',
@@ -21,5 +26,4 @@ export const IPC = {
   MCP_UNREGISTER: 'mcp:unregister',
   AUTOSTART_GET: 'autostart:get',
   AUTOSTART_SET: 'autostart:set',
-  CONFIG_CHANGED: 'config:changed',
 }

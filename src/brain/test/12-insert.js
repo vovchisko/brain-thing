@@ -17,6 +17,10 @@ export default async function ({ post, assert }) {
   const startIdx = content.indexOf('Start line')
   const endIdx = content.indexOf('End line')
   assert(startIdx < endIdx, 'start before end')
+  // No whitespace added automatically — AI controls separators via the text itself
+  assert(!/\n{3,}/.test(content), 'insert does not stack extra newlines')
+  assert(/Start line\n/.test(content), 'prepended text preserved exactly (incl. user newline)')
+  assert(/\nEnd line/.test(content), 'appended text preserved exactly (incl. user newline)')
 
   // Marker: after
   await post('insert', { name: 'Alpha', text: ' [AFTER]', marker: 'Start line', position: 'after' })

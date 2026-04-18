@@ -60,9 +60,9 @@ export async function handleInsert ({ name, text, marker, position }) {
       newContent = entry.content.slice(0, insertAt) + text + entry.content.slice(insertAt)
     }
   } else if (pos === 'start') {
-    newContent = text + '\n\n' + entry.content
+    newContent = text + entry.content
   } else {
-    newContent = entry.content + '\n\n' + text
+    newContent = entry.content + text
   }
 
   await obsidian.updateFile(entry, newContent)

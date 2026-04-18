@@ -1,6 +1,6 @@
 import { store }                                         from '../modules/store.js'
 import { extractWikilinks, isEmptyEntry, stripBrackets } from '../lib/utils.js'
-import { entryNotFoundMessage, entryProps, findEntry, formatEntry, markSeen } from './_helpers.js'
+import { entryNotFoundMessage, entryProps, findEntry, formatEntry, formatEntryInline, markSeen } from './_helpers.js'
 import { createBus }                                     from '../lib/bus.js'
 
 const bus = createBus('get')
@@ -26,7 +26,8 @@ export async function handleGet ({ name }) {
 
   const backlinks = store.findBacklinks(match.name)
   if (backlinks && backlinks.length > 0) {
-    response += '\n\nBacklinks: ' + backlinks.map(b => `[[${ b.name }]]`).join(', ')
+    response += `\n\nBacklinks (${ backlinks.length }):\n`
+    response += backlinks.map(b => `- ${ formatEntryInline(b) }`).join('\n')
   }
 
   // Outgoing broken/empty links

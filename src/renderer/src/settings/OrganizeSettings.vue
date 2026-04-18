@@ -15,7 +15,7 @@ const expanded = ref(new Set())
 const dirty = computed(() => JSON.stringify(organize.value) !== JSON.stringify(original.value))
 const projectList = computed(() => Object.entries(organize.value.projects || {}))
 
-watch(() => settings.config.value?.organize, (org) => {
+watch(() => settings.vault.value?.organize, (org) => {
   if (org) {
     organize.value = JSON.parse(JSON.stringify(org))
     original.value = JSON.parse(JSON.stringify(org))
@@ -24,7 +24,7 @@ watch(() => settings.config.value?.organize, (org) => {
 
 async function save () {
   const raw = JSON.parse(JSON.stringify(toRaw(organize.value)))
-  await settings.saveAndSwap({ organize: raw })
+  await settings.saveVaultAndSwap({ organize: raw })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }

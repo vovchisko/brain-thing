@@ -91,8 +91,8 @@ async function narrate (entry) {
 
 async function init (config) {
   _config = config
-  TTS_URL = `http://${ config.tts.host }:${ config.tts.port }`
-  CHUNKS_FILE = path.join(config.dataDir, 'tts-chunks.json')
+  TTS_URL = `http://${ config.const.tts.host }:${ config.const.tts.port }`
+  CHUNKS_FILE = path.join(config.system.dataDir, 'tts-chunks.json')
 
   loadChunkState()
 
@@ -126,6 +126,7 @@ async function init (config) {
 }
 
 async function onFilesChanged (filePaths) {
+  if (!CHUNKS_FILE) return // TTS feature not initialized (e.g. toggled on after start without restart)
   const toNarrate = []
 
   for (const fp of filePaths) {

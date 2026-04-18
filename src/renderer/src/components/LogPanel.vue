@@ -100,6 +100,8 @@ $tts-badge: #1a5a5a;
     &_line {
       color: var(--text-dim);
       word-break: break-word;
+      white-space: pre-wrap;
+      min-height: 14px;
     }
 
     &._warn .log-panel_entry_line { color: var(--warning); }

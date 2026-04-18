@@ -7,7 +7,7 @@ const folders = ref([])
 const patterns = ref([])
 const saved = ref(false)
 
-watch(() => settings.config.value?.ignore, (ig) => {
+watch(() => settings.vault.value?.ignore, (ig) => {
   if (ig) {
     folders.value = [...(ig.folders || [])]
     patterns.value = [...(ig.patterns || [])]
@@ -15,7 +15,7 @@ watch(() => settings.config.value?.ignore, (ig) => {
 }, { immediate: true })
 
 async function save () {
-  await settings.saveAndSwap({ ignore: { folders: [...toRaw(folders.value)], patterns: [...toRaw(patterns.value)] } })
+  await settings.saveVaultAndSwap({ ignore: { folders: [...toRaw(folders.value)], patterns: [...toRaw(patterns.value)] } })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }

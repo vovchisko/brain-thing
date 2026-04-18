@@ -30,9 +30,22 @@ Edit a note in Obsidian — Claude sees it in seconds. Create an entry through C
 ## Install
 
 1. Download the latest release from [GitHub Releases](https://github.com/vovchisko/brain-thing/releases)
-2. Run the installer (Windows will show an "Unknown Publisher" warning — no code signing yet)
-3. On first launch, point Brain Thing to your vault folder
-4. It downloads the embedding model (~1 GB) and indexes everything
+   - **Windows:** the `-setup.exe` file
+   - **Mac with Apple chip** (M1/M2/M3/M4): the `-arm64.dmg` file
+   - **Mac with Intel chip:** the `-x64.dmg` file
+
+   Not sure which Mac you have? Click the Apple menu → **About This Mac**. If you see "Apple M…" — it's Apple Silicon. If you see "Intel" — it's Intel.
+
+2. Run the installer. The app isn't signed yet, so your system will warn you:
+   - **Windows:** "Unknown Publisher" — click **More info → Run anyway**.
+   - **Mac:** "Brain Thing is damaged" or "cannot be opened". Open **Finder → Applications**, right-click **Brain Thing**, choose **Open**, then **Open** again in the dialog. You only do this once. If it still refuses, open **Terminal** and run:
+     ```
+     xattr -cr "/Applications/Brain Thing.app"
+     ```
+     then try again.
+
+3. On first launch, point Brain Thing to your vault folder.
+4. It downloads the embedding model (~1 GB) and indexes everything.
 
 ### Connect to Claude
 

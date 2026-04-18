@@ -11,6 +11,7 @@ import { registration }            from './modules/register.js'
 import { diagnostics }             from './modules/diagnostics.js'
 import { tts }                     from './modules/tts.js'
 import { wrap }                    from './lib/api.js'
+import { describeFields }          from './lib/utils.js'
 
 import { handleGet }        from './api/get.js'
 import { handleWhatIs }     from './api/what_is.js'
@@ -28,6 +29,7 @@ import { handleFields }     from './api/fields.js'
 import { handleSearch }     from './api/search.js'
 import { handleDiagnostic }     from './api/diagnostic.js'
 import { handleProjectConfig } from './api/project_config.js'
+import { handleLongRead }      from './api/long_read.js'
 
 import * as mcpGet        from './mcp/get.js'
 import * as mcpWhatIs     from './mcp/what_is.js'
@@ -45,14 +47,24 @@ import * as mcpSearch     from './mcp/search.js'
 import * as mcpNarrate    from './mcp/narrate.js'
 import * as mcpDiagnostic     from './mcp/diagnostic.js'
 import * as mcpProjectConfig from './mcp/project_config.js'
+import * as mcpLongRead     from './mcp/long_read.js'
 
 const ALL_MCP = [
   mcpGet, mcpWhatIs, mcpGrep, mcpLookAround, mcpTagsList,
   mcpCreate, mcpUpdate, mcpReplace, mcpInsert, mcpDelete, mcpRename,
-  mcpFields, mcpSearch, mcpNarrate, mcpDiagnostic, mcpProjectConfig,
+  mcpFields, mcpSearch, mcpNarrate, mcpDiagnostic, mcpProjectConfig, mcpLongRead,
 ]
 
 const bus = createBus('brain')
+
+function augmentTool (m, config) {
+  if (!m.injectFields) return m.tool
+  const block = describeFields(config, m.injectFields)
+  if (!block) return m.tool
+  const header = m.injectFields === 'search' ? 'Searchable fields' : 'Known fields'
+  const tail = `\n\n${ header } (configure in Settings → Fields):\n${ block }`
+  return { ...m.tool, description: m.tool.description + tail }
+}
 
 const SKIP_FIELDS = new Set(['name', 'content', 'source_file', 'content_hash'])
 
@@ -113,20 +125,20 @@ function stopLiveCounter () {
   if (liveTimer) { clearInterval(liveTimer); liveTimer = null }
 }
 
-async function start (dataDir) {
+async function start (dataDir, opts = {}) {
   if (dataDir) {
     cfg.init(dataDir)
-    if (!cfg.state.brainDir) cfg.state.brainDir = dirname(fileURLToPath(import.meta.url))
+    if (!cfg.state.system.brainDir) cfg.state.system.brainDir = dirname(fileURLToPath(import.meta.url))
   }
 
   const config = cfg.state
 
-  if (!config.vault) {
+  if (!config.system.vaultPath) {
     bus.warn('start', 'No vault path configured, server not started')
     return null
   }
 
-  process.env.TRANSFORMERS_CACHE = config.modelCacheDir
+  process.env.TRANSFORMERS_CACHE = config.system.modelCacheDir
 
   store.init(config)
   obsidian.init(config)
@@ -147,15 +159,18 @@ async function start (dataDir) {
   fastify.post(`/${ TOOLS.RENAME }`, wrap('rename', handleRename))
   fastify.post(`/${ TOOLS.FIELDS }`, wrap('fields', handleFields))
   fastify.post(`/${ TOOLS.SEARCH }`, wrap('search', handleSearch))
-  if (config.features.tts) {
+  if (config.vault.features.tts) {
     fastify.post(`/${ TOOLS.NARRATE }`, wrap('narrate', handleNarrate))
   }
   fastify.post(`/${ TOOLS.DIAGNOSTIC }`, wrap('diagnostic', handleDiagnostic))
   fastify.post(`/${ TOOLS.PROJECT_CONFIG }`, wrap('project_config', handleProjectConfig))
+  fastify.post(`/${ TOOLS.LONG_READ }`, wrap('long_read', handleLongRead))
 
-  fastify.get('/status', async () => ({ name: config.name, entries: store.entries.size, vault: config.vault }))
+  fastify.get('/status', async () => ({ name: config.system.name, entries: store.entries.size, vault: config.system.vaultPath }))
   fastify.get('/tools', async () => {
-    const tools = ALL_MCP.filter(m => !m.feature || config.features[m.feature]).map(m => m.tool)
+    const tools = ALL_MCP
+      .filter(m => !m.feature || config.vault.features[m.feature])
+      .map(m => augmentTool(m, config))
     bus.info(`MCP requested tools (${ tools.length })`)
     return tools
   })
@@ -163,7 +178,7 @@ async function start (dataDir) {
   _changeCallback = async (filePaths) => {
     await obsidian.syncFiles(filePaths)
     diagnostics.checkChanged(filePaths)
-    if (config.features.tts) tts.onFilesChanged(filePaths)
+    if (config.vault.features.tts) tts.onFilesChanged(filePaths)
     pushEntries()
     pushIssues()
     pushFields()
@@ -194,12 +209,14 @@ async function start (dataDir) {
   status('ready')
   diagnostics.checkAll()
   watcher.start(config, _changeCallback)
-  if (config.features.tts) tts.init(config)
+  if (config.vault.features.tts) tts.init(config)
 
-  cfg.changed.on(() => {
+  const onConfigChanged = (scope) => () => {
     pushProjects()
-    if (server.onConfigChanged) server.onConfigChanged()
-  })
+    if (server.onConfigChanged) server.onConfigChanged(scope)
+  }
+  cfg.system.changed.on(onConfigChanged('system'))
+  cfg.vault.changed.on(onConfigChanged('vault'))
 
   store.ready.emit()
 
@@ -208,8 +225,13 @@ async function start (dataDir) {
   pushFields()
   pushProjects()
 
-  await fastify.listen({ port: config.api.port, host: config.api.host })
-  bus.info('start', `Ready: ${ store.entries.size } entries @ http://${ config.api.host }:${ config.api.port }`)
+  if (!opts.skipListen) {
+    await fastify.listen({ port: config.const.api.port, host: config.const.api.host })
+    bus.info('start', `Ready: ${ store.entries.size } entries @ http://${ config.const.api.host }:${ config.const.api.port }`)
+  } else {
+    await fastify.ready()
+    bus.info('start', `Ready: ${ store.entries.size } entries (listen skipped)`)
+  }
 
   return fastify
 }
@@ -218,7 +240,7 @@ async function hotSwap () {
   if (!store.entries) return start()
 
   const config = cfg.state
-  bus.info('swap', `Hot-swapping vault to ${ config.vault }`)
+  bus.info('swap', `Hot-swapping vault to ${ config.system.vaultPath }`)
 
   store.ready.forget()
   watcher.stop()

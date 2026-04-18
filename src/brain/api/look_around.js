@@ -20,10 +20,10 @@ export async function handleLookAround () {
   const projectList = [...projectCounts.entries()].sort((a, b) => b[1] - a[1])
   bus.info(`${ store.entries.size } entries, ${ projectList.length } projects`)
 
-  let result = `# ${ cfg.state.name }\n\n`
+  let result = `# ${ cfg.state.system.name }\n\n`
 
   // Guideline first
-  const guidelineName = cfg.state.guideline
+  const guidelineName = cfg.state.vault.guidelineName
   if (guidelineName) {
     const entry = store.entries.get(guidelineName)
     if (entry) {

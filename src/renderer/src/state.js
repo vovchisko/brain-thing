@@ -42,7 +42,7 @@ export async function initState () {
   const cached = await window.api.stats.get()
   Object.assign(state, cached)
 
-  const cfg = await window.api.config.get()
+  const cfg = await window.api.config.system.get()
   state.verboseConsole = cfg.verboseConsole || false
 
   const buffer = await window.api.logs.buffer()

@@ -1,6 +1,6 @@
 import { obsidian }                        from '../modules/obsidian.js'
 import { ApiError }                        from '../lib/api.js'
-import { entryNotFoundMessage, findEntry, checkStale, markSeen } from './_helpers.js'
+import { entryNotFoundMessage, findEntry, checkStale, markSeen, typeWarnings } from './_helpers.js'
 import { createBus }                       from '../lib/bus.js'
 
 const bus = createBus('update')
@@ -61,9 +61,12 @@ export async function handleUpdate ({ name, fields }) {
   }
 
   const content = newContent !== null ? newContent : entry.content
+  const warnings = typeWarnings(updatedProps)
 
   await obsidian.updateFile(entry, content, updatedProps)
   markSeen(findEntry(name))
   ev.ok(`updated (${ fieldNames })`)
-  return { text: `Updated "${ name }" (${ fieldNames })` }
+  let text = `Updated "${ name }" (${ fieldNames })`
+  if (warnings.length) text += `\n\nWarnings:\n- ${ warnings.join('\n- ') }`
+  return { text }
 }

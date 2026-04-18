@@ -144,6 +144,47 @@ export function isEmptyEntry (entry) {
   return !entry.content || !entry.content.trim()
 }
 
+/** Count whitespace-separated words. Safe on empty/null. */
+export function countWords (text) {
+  if (!text) return 0
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
+
+/**
+ * Build a human-readable field listing for MCP tool descriptions.
+ * @param {object} state - cfg.state (needs .vault.fields and .vault.features)
+ * @param {'write'|'search'} scope - 'write' excludes auto-managed date fields (created/modified)
+ */
+export function describeFields (state, scope) {
+  const fields = state.vault.fields || {}
+  const features = state.vault.features || {}
+  const AUTO = new Set(['created', 'modified'])
+  const lines = []
+  for (const [name, type] of Object.entries(fields)) {
+    if (scope === 'write' && AUTO.has(name)) continue
+    if (type.feature && !features[type.feature]) continue
+    const desc = type.desc ? ` — ${ type.desc }` : ''
+    lines.push(`  - ${ name } (${ type.type })${ desc }`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Recursively freeze an object. No-op on primitives or already-frozen objects.
+ */
+export function deepFreeze (obj) {
+  if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
+    Object.freeze(obj)
+    for (const v of Object.values(obj)) deepFreeze(v)
+  }
+  return obj
+}
+
+/** Structured deep clone for JSON-safe data. Throws on functions/classes. */
+export function deepClone (obj) {
+  return structuredClone(obj)
+}
+
 /**
  * Check if path should be ignored based on config.
  * @param {string} filePath - full path or relative path

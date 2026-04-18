@@ -17,7 +17,7 @@ function init (config) {
 }
 
 function coerceFields (data) {
-  for (const [ name, type ] of Object.entries(_config.fields)) {
+  for (const [ name, type ] of Object.entries(_config.vault.fields)) {
     if (name in data) data[name] = type.parse(data[name])
   }
   return data
@@ -25,7 +25,7 @@ function coerceFields (data) {
 
 function serializeFields (data) {
   const out = { ...data }
-  for (const [ name, type ] of Object.entries(_config.fields)) {
+  for (const [ name, type ] of Object.entries(_config.vault.fields)) {
     if (name in out) out[name] = type.serialize(out[name])
   }
   return out
@@ -57,11 +57,11 @@ async function findFile (filename) {
   }
 
   try {
-    const entries = await fs.readdir(_config.vault, { withFileTypes: true, recursive: true })
+    const entries = await fs.readdir(_config.system.vaultPath, { withFileTypes: true, recursive: true })
     for (const entry of entries) {
       if (entry.isFile() && entry.name === filename) {
-        const fullPath = path.join(entry.parentPath || entry.path || _config.vault, entry.name)
-        if (shouldIgnore(fullPath, _config.ignore)) continue
+        const fullPath = path.join(entry.parentPath || entry.path || _config.system.vaultPath, entry.name)
+        if (shouldIgnore(fullPath, _config.vault.ignore)) continue
         filenameCache.set(filename, fullPath)
         return fullPath
       }
@@ -84,7 +84,7 @@ function parseFrontmatter (text) {
 
 function serializeFrontmatter (frontmatter, content = '') {
   const serialized = serializeFields(frontmatter)
-  const ordered = orderKeys(serialized, _config.frontmatterHead, _config.frontmatterTail)
+  const ordered = orderKeys(serialized, _config.const.frontmatterHead, _config.const.frontmatterTail)
   return matter.stringify(content, ordered)
 }
 
@@ -175,7 +175,7 @@ async function scanDirectory (dir) {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
 
-    if (shouldIgnore(fullPath, _config.ignore)) continue
+    if (shouldIgnore(fullPath, _config.vault.ignore)) continue
 
     if (entry.isDirectory()) {
       await scanDirectory(fullPath)
@@ -261,8 +261,8 @@ async function createFile (name, content, props = {}) {
 
   stampNew(props)
 
-  const folder = resolveFolder(props, _config) || _config.organize.default
-  const dir = path.join(_config.vault, folder)
+  const folder = resolveFolder(props, _config) || _config.vault.organize.default
+  const dir = path.join(_config.system.vaultPath, folder)
   await fs.mkdir(dir, { recursive: true })
 
   const fileContent = serializeFrontmatter(props, content)
@@ -349,7 +349,7 @@ async function organizeFile (entryOrName) {
   const target = resolveFolder(entry, _config)
   if (!target || !needsMove(entry, target, _config)) return
 
-  const targetDir = path.join(_config.vault, target)
+  const targetDir = path.join(_config.system.vaultPath, target)
   await fs.mkdir(targetDir, { recursive: true })
 
   const filename = path.basename(entry.source_file)
@@ -368,17 +368,17 @@ async function run () {
   importedFiles.clear()
 
   try {
-    await fs.mkdir(path.join(_config.vault, _config.organize.default), { recursive: true })
+    await fs.mkdir(path.join(_config.system.vaultPath, _config.vault.organize.default), { recursive: true })
   } catch (err) {
     // Ignore if exists
   }
 
-  bus.info('scan', `Scanning ${ _config.vault }`)
+  bus.info('scan', `Scanning ${ _config.system.vaultPath }`)
 
   try {
-    await scanDirectory(_config.vault)
+    await scanDirectory(_config.system.vaultPath)
   } catch (err) {
-    bus.error(`Failed to scan ${ _config.vault } — ${ err.message }`)
+    bus.error(`Failed to scan ${ _config.system.vaultPath } — ${ err.message }`)
   }
 
   const orphans = store.entries.filter(e => !e.source_file || !importedFiles.has(e.source_file))
@@ -430,7 +430,7 @@ async function writeToFolder (folder, name, content, props = {}) {
     throw new Error(`File already exists: ${ filename }`)
   }
 
-  const dir = path.join(_config.vault, folder)
+  const dir = path.join(_config.system.vaultPath, folder)
   await fs.mkdir(dir, { recursive: true })
 
   stampNew(props)
@@ -467,8 +467,12 @@ async function renameFile (entry, newName) {
 
   const regex = buildWikilinkRegex(oldName)
 
+  // Snapshot: importFile() below mutates store.entries (delete + add), which would
+  // shift iterator indices and cause entries to be skipped
+  const refs = [ ...store.entries ]
+
   let updatedFiles = 0
-  for (const ref of store.entries) {
+  for (const ref of refs) {
     if (ref.name === oldName) continue
     if (!ref.source_file) continue
 
