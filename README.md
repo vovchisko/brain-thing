@@ -29,20 +29,10 @@ Edit a note in Obsidian — Claude sees it in seconds. Create an entry through C
 
 ## Install
 
-1. Download the latest release from [GitHub Releases](https://github.com/vovchisko/brain-thing/releases)
-   - **Windows:** the `-setup.exe` file
-   - **Mac with Apple chip** (M1/M2/M3/M4): the `-arm64.dmg` file
-   - **Mac with Intel chip:** the `-x64.dmg` file
+1. Download the latest release from [GitHub Releases](https://github.com/vovchisko/brain-thing/releases) — pre-built only for **Windows** (`-setup.exe`).
+   - **Mac / Linux users:** build from source — see [Development](#development) below. Pre-built Mac/Linux releases dropped because GitHub's free macOS Intel runner was deprecated and Apple Silicon-only builds excluded too many users to be worth maintaining the CI complexity.
 
-   Not sure which Mac you have? Click the Apple menu → **About This Mac**. If you see "Apple M…" — it's Apple Silicon. If you see "Intel" — it's Intel.
-
-2. Run the installer. The app isn't signed yet, so your system will warn you:
-   - **Windows:** "Unknown Publisher" — click **More info → Run anyway**.
-   - **Mac:** "Brain Thing is damaged" or "cannot be opened". Open **Finder → Applications**, right-click **Brain Thing**, choose **Open**, then **Open** again in the dialog. You only do this once. If it still refuses, open **Terminal** and run:
-     ```
-     xattr -cr "/Applications/Brain Thing.app"
-     ```
-     then try again.
+2. Run the installer. The app isn't signed yet, so Windows will show **"Unknown Publisher"** — click **More info → Run anyway**.
 
 3. On first launch, point Brain Thing to your vault folder.
 4. It downloads the embedding model (~1 GB) and indexes everything.
@@ -117,10 +107,11 @@ Brain Thing runs as a standalone desktop app with its own HTTP server. The embed
 | Tool | Purpose |
 |---|---|
 | `look_around` | Vault overview: projects, tags, entry counts, guidelines |
-| `what_is` | Semantic search; high-confidence match returns full entry |
+| `what_is` | Semantic search — returns a ranked list of candidates |
 | `grep` | Literal text search across titles, content, summaries |
 | `search` | Structured queries with operators ($eq, $gt, $lt, $any, $all) |
 | `get` | Full entry by name, with backlinks and broken link warnings |
+| `long_read` | Bulk read or estimate size of multiple entries in one call |
 | `tags_list` | Browse tag hierarchy, drill into prefixes |
 | `fields` | Discover available fields and their types |
 | `diagnostic` | Broken links, missing summaries, health checks |
@@ -136,10 +127,6 @@ Brain Thing runs as a standalone desktop app with its own HTTP server. The embed
 | `delete` | Remove entry and file |
 | `rename` | Rename entry; updates all wikilinks across the vault |
 | `project_config` | List, create, update, remove project configs |
-
-**Experimental:**
-
-`narrate` — text-to-speech chunking. Under development; requires a custom XTTS v2 setup. Soon I will find a more friendly way to set it up or at least share my setup when it is somewhat stable.
 
 ### Data Format
 
@@ -159,8 +146,12 @@ created: 2026-03-15
 modified: 2026-04-01
 ---
 
-Task details here. Supports [[wikilinks]] to other entries.
+Task details here. Supports `[[wikilinks]]` to other entries.
 ```
+
+## Roadmap, maybe
+
+- TTS narration — pipe matching entries to a text-to-speech engine. There's a working local XTTS v2 setup behind it already, but the server side isn't public yet. Future direction: either ship the local setup as a companion install, or wire it up to a hosted TTS service so people can actually use it.
 
 ## Development
 

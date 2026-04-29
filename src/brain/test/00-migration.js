@@ -80,4 +80,18 @@ export default async function ({ assert }) {
   assert(!('_settingsMigrated' in v3), 'v3→v4: _settingsMigrated sentinel removed')
   assert(v3.vaultPath === '/some/path', 'v3→v4: system keys preserved')
   assert(v3.startMinimized === false, 'v3→v4: startMinimized preserved')
+
+  // Vault migration: legacy `narrate` field def dropped (replaced by narrate.rules)
+  const vaultStored = {
+    fields: [
+      { name: 'project', type: 'string' },
+      { name: 'narrate', type: 'string', feature: 'tts' },
+      { name: 'priority', type: 'number' },
+    ],
+  }
+  const before = vaultStored.fields.length
+  vaultStored.fields = vaultStored.fields.filter(f => f.name !== 'narrate')
+  assert(vaultStored.fields.length === before - 1, 'vault: narrate field def removed')
+  assert(!vaultStored.fields.find(f => f.name === 'narrate'), 'vault: no narrate field remains')
+  assert(vaultStored.fields.find(f => f.name === 'project'), 'vault: other fields preserved')
 }

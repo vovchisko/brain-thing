@@ -26,4 +26,6 @@ export const IPC = {
   MCP_UNREGISTER: 'mcp:unregister',
   AUTOSTART_GET: 'autostart:get',
   AUTOSTART_SET: 'autostart:set',
+  TTS_FLUSH_CHUNKS: 'tts:flush-chunks',
+  TTS_RERUN_JOBS: 'tts:rerun-jobs',
 }

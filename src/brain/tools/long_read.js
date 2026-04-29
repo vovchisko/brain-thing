@@ -1,18 +1,43 @@
-import matter                 from 'gray-matter'
-import { cfg }                from '../config.js'
-import { ApiError }           from '../lib/api.js'
-import { orderKeys }          from '../lib/utils.js'
+import matter                  from 'gray-matter'
+import { TOOLS }               from '../../shared/constants.js'
+import { cfg }                 from '../config.js'
+import { ApiError }            from '../lib/api.js'
+import { orderKeys }           from '../lib/utils.js'
 import { findEntry, markSeen } from './_helpers.js'
-import { createBus }          from '../lib/bus.js'
+import { createBus }           from '../lib/bus.js'
 
 const bus = createBus('long_read')
 
-/** Fields never shown in long_read output (internal, auto-managed, or rendered in the head). */
+export const tool = {
+  name: TOOLS.LONG_READ,
+  description: `Read or estimate size of multiple entries in one call. Prefer this over N separate get calls when processing a set of known entries.
+
+operation: "estimate" — compact list with tags and word counts (+ summary if include_summary=true). Use this first when total size may be large.
+operation: "read" — merged multi-entry view. Frontmatter fields shared by all entries (e.g. project, common tags) are hoisted into a header; each entry shows only its unique fields and full content. Marks all entries as seen so subsequent update/replace/insert work without a separate get.`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      operation: {
+        type: 'string',
+        enum: [ 'estimate', 'read' ],
+        description: 'estimate = preview sizes; read = full content',
+      },
+      documents: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Exact entry names (case-insensitive). Non-existent names are reported at the end, not fatal.',
+      },
+      include_summary: {
+        type: 'boolean',
+        description: 'For estimate only: include summary line per entry',
+      },
+    },
+    required: [ 'operation', 'documents' ],
+  },
+}
+
 const HIDDEN = new Set(['name', 'content', 'source_file', 'content_hash', 'wordCount', 'created', 'modified'])
 
-/**
- * Resolve names → {found: Entry[], missing: string[]}. Preserves input order.
- */
 function resolve (names) {
   const found = []
   const missing = []
@@ -28,16 +53,11 @@ function resolve (names) {
   return { found, missing }
 }
 
-/**
- * Compute frontmatter shared by all entries (same scalar value OR tag intersection).
- * Returns { common, perEntry } where perEntry is a map name→remaining-fields-object.
- */
 function extractCommon (entries) {
   const common = {}
   const perEntry = new Map()
   if (!entries.length) return { common, perEntry }
 
-  // Scalar fields: value must be identical (strict) across all entries
   const candidateKeys = new Set()
   for (const e of entries) {
     for (const k of Object.keys(e)) {
@@ -49,17 +69,15 @@ function extractCommon (entries) {
   for (const key of candidateKeys) {
     const first = entries[0][key]
     if (first == null) continue
-    if (Array.isArray(first)) continue // arrays other than tags: skip hoisting
+    if (Array.isArray(first)) continue
     if (entries.every(e => e[key] === first)) common[key] = first
   }
 
-  // Tags: intersection across all entries
   if (entries.every(e => Array.isArray(e.tags))) {
     const intersection = entries[0].tags.filter(t => entries.every(e => e.tags.includes(t)))
     if (intersection.length) common.tags = intersection
   }
 
-  // Per-entry remainder
   for (const entry of entries) {
     const rem = {}
     for (const [k, v] of Object.entries(entry)) {
@@ -142,10 +160,7 @@ function formatRead (entries, missing) {
   return lines.join('\n')
 }
 
-/**
- * @param {{ operation: 'estimate'|'read', documents: string[], include_summary?: boolean }} body
- */
-export async function handleLongRead ({ operation, documents, include_summary = false } = {}) {
+export async function handle ({ operation, documents, include_summary = false } = {}) {
   if (operation !== 'estimate' && operation !== 'read') {
     throw new ApiError(400, 'operation must be "estimate" or "read"')
   }
@@ -166,7 +181,6 @@ export async function handleLongRead ({ operation, documents, include_summary = 
     return { text: formatEstimate(found, missing, !!include_summary) }
   }
 
-  // read: mark all as seen so later edits don't hit stale-check
   for (const entry of found) markSeen(entry)
   ev.ok(`${ found.length } entries, ${ totalWords(found) } words`)
   return { text: formatRead(found, missing) }

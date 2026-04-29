@@ -1,3 +1,4 @@
+import { TOOLS }      from '../../shared/constants.js'
 import { store }      from '../modules/store.js'
 import { cfg }        from '../config.js'
 import { createBus }  from '../lib/bus.js'
@@ -6,11 +7,24 @@ const bus = createBus('fields')
 
 const SKIP = new Set([ 'name', 'content', 'source_file', 'content_hash', 'aliases' ])
 
-/**
- * Introspect frontmatter fields across entries.
- * @param {{ tags?: string[], project?: string }} body
- */
-export async function handleFields ({ tags, project } = {}) {
+export const tool = {
+  name: TOOLS.FIELDS,
+  description: `Introspect frontmatter fields across entries.
+
+Shows all fields, their types, how many entries have them, and value summaries.
+Use to discover what fields exist before using the search tool.
+
+Filter by tags or project to see fields specific to a context.`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (prefix match, OR)' },
+      project: { type: 'string', description: 'Filter by project' },
+    },
+  },
+}
+
+export async function handle ({ tags, project } = {}) {
   bus.info(project || (tags?.length ? tags.join(', ') : null) || 'all')
   let entries = [ ...store.entries ]
 
@@ -23,8 +37,7 @@ export async function handleFields ({ tags, project } = {}) {
     return { text: 'No entries match the given filters.' }
   }
 
-  // Collect field stats
-  const stats = new Map() // field → { count, values: Map<value, count> }
+  const stats = new Map()
 
   for (const entry of entries) {
     for (const [ key, value ] of Object.entries(entry)) {
@@ -39,7 +52,6 @@ export async function handleFields ({ tags, project } = {}) {
       }
       stat.count++
 
-      // Collect values for stats
       const vals = Array.isArray(value) ? value : [ value ]
       for (const v of vals) {
         const sv = v instanceof Date ? v.toISOString().slice(0, 10) : String(v)
@@ -58,7 +70,6 @@ export async function handleFields ({ tags, project } = {}) {
   if (project) response += ` [project: ${ project }]`
   response += ':\n'
 
-  // Sort: system fields first, then by count desc
   const sorted = [ ...stats.entries() ].sort((a, b) => b[1].count - a[1].count)
 
   for (const [ field, stat ] of sorted) {
@@ -73,7 +84,6 @@ export async function handleFields ({ tags, project } = {}) {
       response += `\n  known: ${ def.values.join(', ') }`
     }
 
-    // Show value summary based on type
     if (type === 'date' && stat.values.size > 0) {
       const dates = [ ...stat.values.keys() ].sort()
       response += `\n  range: ${ dates[0] } .. ${ dates[dates.length - 1] }`

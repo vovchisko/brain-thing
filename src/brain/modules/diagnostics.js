@@ -1,7 +1,6 @@
 import path                               from 'path'
 import { store }                          from './store.js'
 import { extractWikilinks, isEmptyEntry } from '../lib/utils.js'
-import { chunkText }                      from '../lib/chunker.js'
 import { createBus } from '../lib/bus.js'
 
 const bus = createBus('diag', { system: true })
@@ -42,29 +41,11 @@ function checkSummary (entry) {
 }
 
 /**
- * Check TTS chunking issues for narrate entries.
- */
-function checkTts (entry) {
-  if (!entry.narrate || typeof entry.narrate !== 'string' || !entry.content?.trim()) {
-    entry.issues.delete('tts')
-    return
-  }
-
-  const { warnings } = chunkText(entry.content)
-  if (warnings.length) {
-    entry.issues.set('tts', warnings)
-  } else {
-    entry.issues.delete('tts')
-  }
-}
-
-/**
  * Run all checks on a single entry.
  */
 function checkEntry (entry) {
   checkLinks(entry)
   checkSummary(entry)
-  checkTts(entry)
 }
 
 /**

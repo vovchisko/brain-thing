@@ -1,9 +1,47 @@
-import { obsidian }                        from '../modules/obsidian.js'
-import { ApiError }                        from '../lib/api.js'
-import { entryNotFoundMessage, findEntry, checkStale, markSeen } from './_helpers.js'
-import { createBus }                       from '../lib/bus.js'
+import { TOOLS }                                                  from '../../shared/constants.js'
+import { obsidian }                                               from '../modules/obsidian.js'
+import { ApiError }                                               from '../lib/api.js'
+import { entryNotFoundMessage, findEntry, checkStale, markSeen }  from './_helpers.js'
+import { createBus }                                              from '../lib/bus.js'
 
 const bus = createBus('replace')
+
+export const tool = {
+  name: TOOLS.REPLACE,
+  description: `Find and replace text in entry content. Atomic — all or nothing.
+
+Single mode: pass old_string + new_string (+ optional replace_all).
+Batch mode: pass pairs array [{old_string, new_string, replace_all?}, ...].
+Use one or the other, never both.
+
+- old_string must exist in content; fails if not found
+- If old_string appears multiple times and replace_all is false, operation fails (ambiguous match)
+- In batch mode, all pairs are validated before any changes are applied
+- Use "get" first to see current content`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Entry name' },
+      old_string: { type: 'string', description: 'Text to replace' },
+      new_string: { type: 'string', description: 'Replacement text' },
+      replace_all: { type: 'boolean', description: 'Replace all occurrences (default: false)' },
+      pairs: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            old_string: { type: 'string' },
+            new_string: { type: 'string' },
+            replace_all: { type: 'boolean' },
+          },
+          required: [ 'old_string', 'new_string' ],
+        },
+        description: 'Multiple replacements: [{old_string, new_string, replace_all?}, ...]',
+      },
+    },
+    required: [ 'name' ],
+  },
+}
 
 function truncate (str, len = 40) {
   if (str.length <= len) return str
@@ -14,18 +52,11 @@ function countOccurrences (content, str) {
   return content.split(str).length - 1
 }
 
-/**
- * Find and replace text in entry content.
- * Supports single replacement or multiple pairs. Atomic - no changes if any find fails.
- * @param {{ name: string, old_string?: string, new_string?: string, replace_all?: boolean, pairs?: Array<{old_string: string, new_string: string, replace_all?: boolean}> }} body
- * @returns {Promise<{ text: string }>}
- */
-export async function handleReplace ({ name, old_string, new_string, replace_all, pairs }) {
+export async function handle ({ name, old_string, new_string, replace_all, pairs }) {
   if (!name) {
     throw new ApiError(400, 'Missing required field: name')
   }
 
-  // Normalize to pairs array
   let operations = []
   if (pairs && Array.isArray(pairs)) {
     operations = pairs
@@ -50,7 +81,6 @@ export async function handleReplace ({ name, old_string, new_string, replace_all
   const stale = checkStale(entry)
   if (stale) { ev.warn('stale'); return { text: stale } }
 
-  // Validate all operations first
   const errors = []
   const validated = []
 
@@ -75,7 +105,6 @@ export async function handleReplace ({ name, old_string, new_string, replace_all
     throw new ApiError(400, `Replace failed (no changes made):\n- ${ errors.join('\n- ') }`)
   }
 
-  // Apply all replacements
   let content = entry.content
   const results = []
 

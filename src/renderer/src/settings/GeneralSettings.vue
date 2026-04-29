@@ -40,6 +40,11 @@ async function toggleVerbose () {
   await settings.saveSystem({ verboseConsole: v })
   state.verboseConsole = v
 }
+
+async function toggleTts () {
+  const features = { ...(settings.vault.value?.features || {}), tts: !settings.vault.value?.features?.tts }
+  await settings.saveVault({ features })
+}
 </script>
 
 <template>
@@ -87,6 +92,15 @@ async function toggleVerbose () {
       </div>
       <button class="g-btn general_row_toggle" :class="{ _on: settings.system.value.verboseConsole }" @click="toggleVerbose">
         {{ settings.system.value.verboseConsole ? 'ON' : 'OFF' }}
+      </button>
+    </div>
+    <div v-if="settings.vault.value" class="general_row">
+      <div>
+        <div class="general_row_name">TTS Narration</div>
+        <div class="g-hint">Watch entries and send matching ones to a local TTS server. Configure rules in the Narrate tab.</div>
+      </div>
+      <button class="g-btn general_row_toggle" :class="{ _on: settings.vault.value.features?.tts }" @click="toggleTts">
+        {{ settings.vault.value.features?.tts ? 'ON' : 'OFF' }}
       </button>
     </div>
   </template>

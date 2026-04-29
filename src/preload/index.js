@@ -40,6 +40,10 @@ const api = {
     get: () => ipcRenderer.invoke(IPC.AUTOSTART_GET),
     set: (v) => ipcRenderer.invoke(IPC.AUTOSTART_SET, v),
   },
+  tts: {
+    flushChunks: () => ipcRenderer.invoke(IPC.TTS_FLUSH_CHUNKS),
+    rerunJobs: () => ipcRenderer.invoke(IPC.TTS_RERUN_JOBS),
+  },
   pickFolder: () => ipcRenderer.invoke(IPC.PICK_FOLDER),
   isDirectory: (p) => ipcRenderer.invoke(IPC.FS_IS_DIR, p),
   isEmpty: (p) => ipcRenderer.invoke(IPC.FS_IS_EMPTY, p),

@@ -1,16 +1,28 @@
+import { TOOLS }     from '../../shared/constants.js'
 import { store }     from '../modules/store.js'
 import { createBus } from '../lib/bus.js'
 
 const bus = createBus('tags_list')
 
-/**
- * List tags with counts. If tag provided — show subtags and entries for that prefix.
- * @param {{ tag?: string }} body
- * @returns {Promise<{ text: string }>}
- */
-export async function handleTagsList ({ tag } = {}) {
+export const tool = {
+  name: TOOLS.TAGS_LIST,
+  description: `Browse tags in the knowledge base.
+
+Without parameters: all tags with entry counts.
+With tag: subtags under that prefix + entries at that level.
+
+Use to navigate the tag hierarchy before searching.`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      tag: { type: 'string', description: 'Tag prefix to drill into (e.g. "eo" or "eo/game")' },
+    },
+  },
+}
+
+export async function handle ({ tag } = {}) {
   bus.info(tag || 'all tags')
-  const counts = new Map() // tag → count
+  const counts = new Map()
 
   for (const entry of store.entries) {
     for (const t of (entry.tags || [])) {
@@ -18,7 +30,6 @@ export async function handleTagsList ({ tag } = {}) {
     }
   }
 
-  // No filter → all tags with counts
   if (!tag) {
     const sorted = [ ...counts.entries() ].sort((a, b) => a[0].localeCompare(b[0]))
     let response = `All tags (${ sorted.length }):\n`
@@ -28,7 +39,6 @@ export async function handleTagsList ({ tag } = {}) {
     return { text: response }
   }
 
-  // With tag → subtags + entries at this level
   const prefix = tag.endsWith('/') ? tag : tag + '/'
   const subtags = new Map()
   const exact = []

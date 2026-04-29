@@ -21,14 +21,14 @@ const VAULT_MIGRATION_KEYS = ['fields', 'ignore', 'organize', 'features', 'guide
 
 /** Allowlists for public set() API */
 const SYSTEM_KEYS = new Set(['v', 'vaultPath', 'startMinimized', 'verboseConsole', 'windowBounds', 'name'])
-const VAULT_KEYS  = new Set(['guidelineName', 'features', 'fields', 'ignore', 'organize'])
+const VAULT_KEYS  = new Set(['guidelineName', 'features', 'fields', 'ignore', 'organize', 'narrate'])
 
 /** Hardcoded values — no UI, no external override */
 export const CONSTANTS = deepFreeze({
   api: { port: 43000, host: '127.0.0.1' },
   tts: { port: 42033, host: '127.0.0.1' },
   embeddings: { model: 'Xenova/multilingual-e5-large', dimensions: 1024 },
-  skipLinkScan: ['tags', 'state', 'status', 'narrate'],
+  skipLinkScan: ['tags', 'state', 'status'],
   frontmatterHead: ['name', 'project', 'tags'],
   frontmatterTail: ['created', 'modified', 'summary'],
 })
@@ -68,6 +68,9 @@ const VAULT_DEFAULTS = {
       { tag: 'my/log', folder: 'Logs' },
     ],
   },
+  narrate: {
+    rules: [],
+  },
   fields: [
     { name: 'project',  type: 'string', desc: 'Project grouping',                       core: true },
     { name: 'tags',     type: 'list',   desc: 'Hierarchical categorization',            core: true },
@@ -79,7 +82,6 @@ const VAULT_DEFAULTS = {
     { name: 'priority', type: 'number', desc: 'Priority level' },
     { name: 'due',      type: 'date',   desc: 'Deadline' },
     { name: 'state',    type: 'string', desc: 'Document maturity' },
-    { name: 'narrate',  type: 'string', desc: 'TTS collection name', feature: 'tts' },
   ],
 }
 
@@ -102,6 +104,7 @@ const vaultState = {
   features: deepClone(VAULT_DEFAULTS.features),
   ignore: deepClone(VAULT_DEFAULTS.ignore),
   organize: deepClone(VAULT_DEFAULTS.organize),
+  narrate: deepClone(VAULT_DEFAULTS.narrate),
   fields: buildFields(VAULT_DEFAULTS.fields),
   vectorCacheDir: null,
 }
@@ -283,6 +286,18 @@ function applySystemConfig () {
   }
 }
 
+function migrateVaultConfig (stored) {
+  let changed = false
+  // Drop legacy `narrate` field def from user fields config (field replaced by narrate.rules)
+  if (Array.isArray(stored.fields)) {
+    const before = stored.fields.length
+    stored.fields = stored.fields.filter(f => f.name !== 'narrate')
+    if (stored.fields.length !== before) changed = true
+  }
+  if (changed && vaultFilePath) saveJSON(vaultFilePath, stored)
+  return stored
+}
+
 function applyVaultConfig () {
   if (!systemState.vaultPath) {
     vaultFilePath = null
@@ -290,6 +305,7 @@ function applyVaultConfig () {
     vaultState.features = deepClone(VAULT_DEFAULTS.features)
     vaultState.ignore = deepClone(VAULT_DEFAULTS.ignore)
     vaultState.organize = deepClone(VAULT_DEFAULTS.organize)
+    vaultState.narrate = deepClone(VAULT_DEFAULTS.narrate)
     vaultState.fields = buildFields(VAULT_DEFAULTS.fields)
     vaultState.vectorCacheDir = null
     lastSettingsHash = null
@@ -300,7 +316,7 @@ function applyVaultConfig () {
 
   ensureSettingsFile()
 
-  const stored = loadVaultFile()
+  const stored = migrateVaultConfig(loadVaultFile())
   const merged = { ...VAULT_DEFAULTS, ...stored }
 
   if (Array.isArray(merged.fields)) {
@@ -311,6 +327,7 @@ function applyVaultConfig () {
   vaultState.features = deepClone(merged.features)
   vaultState.ignore = deepClone(merged.ignore)
   vaultState.organize = deepClone(merged.organize)
+  vaultState.narrate = deepClone(merged.narrate)
   vaultState.fields = buildFields(merged.fields)
   vaultState.vectorCacheDir = join(systemState.vaultPath, BRAIN_DIR, 'vector-cache')
 

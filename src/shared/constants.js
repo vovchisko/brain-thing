@@ -15,7 +15,6 @@ export const TOOLS = Object.freeze({
   RENAME: 'rename',
   FIELDS: 'fields',
   SEARCH: 'search',
-  NARRATE: 'narrate',
   DIAGNOSTIC: 'diagnostic',
   PROJECT_CONFIG: 'project_config',
   LONG_READ: 'long_read',

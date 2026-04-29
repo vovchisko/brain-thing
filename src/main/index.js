@@ -5,6 +5,7 @@ import { electronApp, is, optimizer }                        from '@electron-too
 import { cfg }                                               from '../brain/config.js'
 import { server }                                            from '../brain/server.js'
 import { registration }                                      from '../brain/modules/register.js'
+import { tts }                                               from '../brain/modules/tts.js'
 import { onBrainEvent }                                      from '../brain/lib/bus.js'
 import { createTray, checkForUpdate }                        from './tray'
 import { IPC }                                               from '../shared/ipc'
@@ -180,6 +181,10 @@ app.whenReady().then(() => {
   // Autostart
   ipcMain.handle(IPC.AUTOSTART_GET, () => !is.dev && app.getLoginItemSettings().openAtLogin)
   ipcMain.handle(IPC.AUTOSTART_SET, (_e, v) => { if (!is.dev) app.setLoginItemSettings({ openAtLogin: v }) })
+
+  // TTS maintenance
+  ipcMain.handle(IPC.TTS_FLUSH_CHUNKS, () => tts.flushChunks())
+  ipcMain.handle(IPC.TTS_RERUN_JOBS, () => tts.rerunJobs())
 
   ipcMain.handle(IPC.PICK_FOLDER, async () => {
     const win = mainWindow || BrowserWindow.getFocusedWindow()

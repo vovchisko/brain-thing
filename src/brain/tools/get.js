@@ -1,16 +1,32 @@
-import { store }                                         from '../modules/store.js'
-import { extractWikilinks, isEmptyEntry, stripBrackets } from '../lib/utils.js'
+import { TOOLS }                                          from '../../shared/constants.js'
+import { store }                                          from '../modules/store.js'
+import { extractWikilinks, isEmptyEntry, stripBrackets }  from '../lib/utils.js'
 import { entryNotFoundMessage, entryProps, findEntry, formatEntry, formatEntryInline, markSeen } from './_helpers.js'
-import { createBus }                                     from '../lib/bus.js'
+import { createBus }                                      from '../lib/bus.js'
 
 const bus = createBus('get')
 
-/**
- * Get entry by exact name.
- * @param {{ name: string }} body
- * @returns {Promise<{ text: string }>}
- */
-export async function handleGet ({ name }) {
+export const tool = {
+  name: TOOLS.GET,
+  description: `Get entry by exact name.
+
+Returns entry with metadata fields (name, tags, summary, etc.) and markdown content.
+Also shows backlinks (entries referencing this one) and missing/empty outgoing links if any.
+
+Usage:
+- Use exact entry name (case-insensitive)
+- If entry not found, returns semantic suggestions
+- Use [[wikilinks]] format when referencing entries in content`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Entry name' },
+    },
+    required: [ 'name' ],
+  },
+}
+
+export async function handle ({ name }) {
   const cleanName = stripBrackets(name)
   const ev = bus.op(cleanName)
   const match = findEntry(cleanName)

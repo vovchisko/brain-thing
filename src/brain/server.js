@@ -13,57 +13,42 @@ import { tts }                     from './modules/tts.js'
 import { wrap }                    from './lib/api.js'
 import { describeFields }          from './lib/utils.js'
 
-import { handleGet }        from './api/get.js'
-import { handleWhatIs }     from './api/what_is.js'
-import { handleTagsList }   from './api/tags_list.js'
-import { handleCreate }     from './api/create.js'
-import { handleUpdate }     from './api/update.js'
-import { handleReplace }    from './api/replace.js'
-import { handleInsert }     from './api/insert.js'
-import { handleDelete }     from './api/delete.js'
-import { handleRename }     from './api/rename.js'
-import { handleGrep }       from './api/grep.js'
-import { handleNarrate }    from './api/narrate.js'
-import { handleLookAround } from './api/look_around.js'
-import { handleFields }     from './api/fields.js'
-import { handleSearch }     from './api/search.js'
-import { handleDiagnostic }     from './api/diagnostic.js'
-import { handleProjectConfig } from './api/project_config.js'
-import { handleLongRead }      from './api/long_read.js'
+import * as toolGet           from './tools/get.js'
+import * as toolWhatIs        from './tools/what_is.js'
+import * as toolGrep          from './tools/grep.js'
+import * as toolLookAround    from './tools/look_around.js'
+import * as toolTagsList      from './tools/tags_list.js'
+import * as toolCreate        from './tools/create.js'
+import * as toolUpdate        from './tools/update.js'
+import * as toolReplace       from './tools/replace.js'
+import * as toolInsert        from './tools/insert.js'
+import * as toolDelete        from './tools/delete.js'
+import * as toolRename        from './tools/rename.js'
+import * as toolFields        from './tools/fields.js'
+import * as toolSearch        from './tools/search.js'
+import * as toolDiagnostic    from './tools/diagnostic.js'
+import * as toolProjectConfig from './tools/project_config.js'
+import * as toolLongRead      from './tools/long_read.js'
 
-import * as mcpGet        from './mcp/get.js'
-import * as mcpWhatIs     from './mcp/what_is.js'
-import * as mcpGrep       from './mcp/grep.js'
-import * as mcpLookAround from './mcp/look_around.js'
-import * as mcpTagsList   from './mcp/tags_list.js'
-import * as mcpCreate     from './mcp/create.js'
-import * as mcpUpdate     from './mcp/update.js'
-import * as mcpReplace    from './mcp/replace.js'
-import * as mcpInsert     from './mcp/insert.js'
-import * as mcpDelete     from './mcp/delete.js'
-import * as mcpRename     from './mcp/rename.js'
-import * as mcpFields     from './mcp/fields.js'
-import * as mcpSearch     from './mcp/search.js'
-import * as mcpNarrate    from './mcp/narrate.js'
-import * as mcpDiagnostic     from './mcp/diagnostic.js'
-import * as mcpProjectConfig from './mcp/project_config.js'
-import * as mcpLongRead     from './mcp/long_read.js'
-
-const ALL_MCP = [
-  mcpGet, mcpWhatIs, mcpGrep, mcpLookAround, mcpTagsList,
-  mcpCreate, mcpUpdate, mcpReplace, mcpInsert, mcpDelete, mcpRename,
-  mcpFields, mcpSearch, mcpNarrate, mcpDiagnostic, mcpProjectConfig, mcpLongRead,
+const ALL_TOOLS = [
+  toolGet, toolWhatIs, toolGrep, toolLookAround, toolTagsList,
+  toolCreate, toolUpdate, toolReplace, toolInsert, toolDelete, toolRename,
+  toolFields, toolSearch, toolDiagnostic, toolProjectConfig, toolLongRead,
 ]
 
 const bus = createBus('brain')
 
-function augmentTool (m, config) {
-  if (!m.injectFields) return m.tool
-  const block = describeFields(config, m.injectFields)
-  if (!block) return m.tool
-  const header = m.injectFields === 'search' ? 'Searchable fields' : 'Known fields'
+function isEnabled (t, config) {
+  return !t.feature || config.vault.features[t.feature]
+}
+
+function augmentDescription (t, config) {
+  if (!t.injectFields) return t.tool
+  const block = describeFields(config, t.injectFields)
+  if (!block) return t.tool
+  const header = t.injectFields === 'search' ? 'Searchable fields' : 'Known fields'
   const tail = `\n\n${ header } (configure in Settings → Fields):\n${ block }`
-  return { ...m.tool, description: m.tool.description + tail }
+  return { ...t.tool, description: t.tool.description + tail }
 }
 
 const SKIP_FIELDS = new Set(['name', 'content', 'source_file', 'content_hash'])
@@ -146,31 +131,28 @@ async function start (dataDir, opts = {}) {
   const fastify = Fastify({ logger: false })
   _fastify = fastify
 
-  fastify.post(`/${ TOOLS.GET }`, wrap('get', handleGet))
-  fastify.post(`/${ TOOLS.WHAT_IS }`, wrap('what_is', handleWhatIs))
-  fastify.post(`/${ TOOLS.GREP }`, wrap('grep', handleGrep))
-  fastify.post(`/${ TOOLS.LOOK_AROUND }`, wrap('look_around', handleLookAround))
-  fastify.post(`/${ TOOLS.TAGS_LIST }`, wrap('tags_list', handleTagsList))
-  fastify.post(`/${ TOOLS.CREATE }`, wrap('create', handleCreate))
-  fastify.post(`/${ TOOLS.UPDATE }`, wrap('update', handleUpdate))
-  fastify.post(`/${ TOOLS.REPLACE }`, wrap('replace', handleReplace))
-  fastify.post(`/${ TOOLS.INSERT }`, wrap('insert', handleInsert))
-  fastify.post(`/${ TOOLS.DELETE }`, wrap('delete', handleDelete))
-  fastify.post(`/${ TOOLS.RENAME }`, wrap('rename', handleRename))
-  fastify.post(`/${ TOOLS.FIELDS }`, wrap('fields', handleFields))
-  fastify.post(`/${ TOOLS.SEARCH }`, wrap('search', handleSearch))
-  if (config.vault.features.tts) {
-    fastify.post(`/${ TOOLS.NARRATE }`, wrap('narrate', handleNarrate))
-  }
-  fastify.post(`/${ TOOLS.DIAGNOSTIC }`, wrap('diagnostic', handleDiagnostic))
-  fastify.post(`/${ TOOLS.PROJECT_CONFIG }`, wrap('project_config', handleProjectConfig))
-  fastify.post(`/${ TOOLS.LONG_READ }`, wrap('long_read', handleLongRead))
+  fastify.post(`/${ toolGet.tool.name }`,           wrap(toolGet.tool.name,           toolGet.handle))
+  fastify.post(`/${ toolWhatIs.tool.name }`,        wrap(toolWhatIs.tool.name,        toolWhatIs.handle))
+  fastify.post(`/${ toolGrep.tool.name }`,          wrap(toolGrep.tool.name,          toolGrep.handle))
+  fastify.post(`/${ toolLookAround.tool.name }`,    wrap(toolLookAround.tool.name,    toolLookAround.handle))
+  fastify.post(`/${ toolTagsList.tool.name }`,      wrap(toolTagsList.tool.name,      toolTagsList.handle))
+  fastify.post(`/${ toolCreate.tool.name }`,        wrap(toolCreate.tool.name,        toolCreate.handle))
+  fastify.post(`/${ toolUpdate.tool.name }`,        wrap(toolUpdate.tool.name,        toolUpdate.handle))
+  fastify.post(`/${ toolReplace.tool.name }`,       wrap(toolReplace.tool.name,       toolReplace.handle))
+  fastify.post(`/${ toolInsert.tool.name }`,        wrap(toolInsert.tool.name,        toolInsert.handle))
+  fastify.post(`/${ toolDelete.tool.name }`,        wrap(toolDelete.tool.name,        toolDelete.handle))
+  fastify.post(`/${ toolRename.tool.name }`,        wrap(toolRename.tool.name,        toolRename.handle))
+  fastify.post(`/${ toolFields.tool.name }`,        wrap(toolFields.tool.name,        toolFields.handle))
+  fastify.post(`/${ toolSearch.tool.name }`,        wrap(toolSearch.tool.name,        toolSearch.handle))
+  fastify.post(`/${ toolDiagnostic.tool.name }`,    wrap(toolDiagnostic.tool.name,    toolDiagnostic.handle))
+  fastify.post(`/${ toolProjectConfig.tool.name }`, wrap(toolProjectConfig.tool.name, toolProjectConfig.handle))
+  fastify.post(`/${ toolLongRead.tool.name }`,      wrap(toolLongRead.tool.name,      toolLongRead.handle))
 
   fastify.get('/status', async () => ({ name: config.system.name, entries: store.entries.size, vault: config.system.vaultPath }))
   fastify.get('/tools', async () => {
-    const tools = ALL_MCP
-      .filter(m => !m.feature || config.vault.features[m.feature])
-      .map(m => augmentTool(m, config))
+    const tools = ALL_TOOLS
+      .filter(t => isEnabled(t, config))
+      .map(t => augmentDescription(t, config))
     bus.info(`MCP requested tools (${ tools.length })`)
     return tools
   })
@@ -178,7 +160,7 @@ async function start (dataDir, opts = {}) {
   _changeCallback = async (filePaths) => {
     await obsidian.syncFiles(filePaths)
     diagnostics.checkChanged(filePaths)
-    if (config.vault.features.tts) tts.onFilesChanged(filePaths)
+    tts.onFilesChanged(filePaths)
     pushEntries()
     pushIssues()
     pushFields()
@@ -209,7 +191,7 @@ async function start (dataDir, opts = {}) {
   status('ready')
   diagnostics.checkAll()
   watcher.start(config, _changeCallback)
-  if (config.vault.features.tts) tts.init(config)
+  tts.init(config)
 
   const onConfigChanged = (scope) => () => {
     pushProjects()

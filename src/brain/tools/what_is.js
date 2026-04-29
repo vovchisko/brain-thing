@@ -1,3 +1,4 @@
+import { TOOLS }            from '../../shared/constants.js'
 import { store }            from '../modules/store.js'
 import { formatResultList } from './_helpers.js'
 import { ApiError }         from '../lib/api.js'
@@ -5,12 +6,29 @@ import { createBus }        from '../lib/bus.js'
 
 const bus = createBus('what_is')
 
-/**
- * Semantic search by meaning. Always returns a ranked list — use `get` to fetch full entry.
- * @param {{ query: string, tags?: string[], project?: string }} body
- * @returns {Promise<{ text: string }>}
- */
-export async function handleWhatIs ({ query, tags, project } = {}) {
+export const tool = {
+  name: TOOLS.WHAT_IS,
+  description: `Semantic search - finds entries by meaning, not just keywords.
+
+Always returns a ranked list (up to 5) with score, project/tags, a short preview, and word count. To read an entry's full content, follow up with the \`get\` tool.
+
+Usage:
+- Describe what you're looking for in natural language
+- Works even if you don't know exact terminology
+- Filter by tags or project to narrow results
+- Word count helps estimate how much content a \`get\` will return`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'What to search for' },
+      tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (prefix match, OR)' },
+      project: { type: 'string', description: 'Filter by project' },
+    },
+    required: ['query'],
+  },
+}
+
+export async function handle ({ query, tags, project } = {}) {
   if (typeof query !== 'string' || !query.trim()) {
     throw new ApiError(400, 'Missing required field: query (non-empty string)')
   }
@@ -31,7 +49,6 @@ export async function handleWhatIs ({ query, tags, project } = {}) {
     )
   }
 
-  // Name-hit boost: entries whose name contains the query get bumped to high confidence
   const queryLower = query.toLowerCase()
   for (const r of filtered) {
     if (r.entity.name.toLowerCase().includes(queryLower) && r.score < 0.8) r.score = 0.8

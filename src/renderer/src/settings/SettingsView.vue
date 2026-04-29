@@ -1,21 +1,28 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { settings }        from './state.js'
 import GeneralSettings     from './GeneralSettings.vue'
 import FieldSettings       from './FieldSettings.vue'
 import IgnoreSettings      from './IgnoreSettings.vue'
 import OrganizeSettings    from './OrganizeSettings.vue'
-import FeatureToggles      from './FeatureToggles.vue'
+import NarrateSettings     from './NarrateSettings.vue'
 
-const sections = [
-  { id: 'general', label: 'General' },
-  { id: 'fields', label: 'Fields' },
-  { id: 'ignore', label: 'Ignore' },
-  { id: 'organize', label: 'Organize' },
-  { id: 'features', label: 'Features' },
-]
+const ttsOn = computed(() => !!settings.vault.value?.features?.tts)
+
+const sections = computed(() => {
+  const list = [
+    { id: 'general', label: 'General' },
+    { id: 'fields', label: 'Fields' },
+    { id: 'ignore', label: 'Ignore' },
+    { id: 'organize', label: 'Organize' },
+  ]
+  if (ttsOn.value) list.push({ id: 'narrate', label: 'Narrate' })
+  return list
+})
 
 const active = ref('general')
+
+watch(ttsOn, (on) => { if (!on && active.value === 'narrate') active.value = 'general' })
 
 onMounted(settings.load)
 </script>
@@ -37,7 +44,7 @@ onMounted(settings.load)
         <FieldSettings    v-if="active === 'fields'" />
         <IgnoreSettings   v-if="active === 'ignore'" />
         <OrganizeSettings v-if="active === 'organize'" />
-        <FeatureToggles   v-if="active === 'features'" />
+        <NarrateSettings  v-if="active === 'narrate' && ttsOn" />
       </div>
     </div>
   </div>

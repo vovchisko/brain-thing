@@ -1,19 +1,51 @@
-import { obsidian }                        from '../modules/obsidian.js'
-import { ApiError }                        from '../lib/api.js'
+import { TOOLS }                            from '../../shared/constants.js'
+import { obsidian }                         from '../modules/obsidian.js'
+import { ApiError }                         from '../lib/api.js'
 import { entryNotFoundMessage, findEntry, checkStale, markSeen, typeWarnings } from './_helpers.js'
-import { createBus }                       from '../lib/bus.js'
+import { createBus }                        from '../lib/bus.js'
 
 const bus = createBus('update')
 
 const READONLY_FIELDS = new Set([ 'name', 'source_file', 'content_hash', 'created' ])
 const ARRAY_FIELDS = new Set([ 'tags', 'aliases', 'related' ])
 
-/**
- * Update entry fields.
- * @param {{ name: string, fields: Array<{ property: string, value: any }> }} body
- * @returns {Promise<{ text: string }>}
- */
-export async function handleUpdate ({ name, fields }) {
+export const tool = {
+  name: TOOLS.UPDATE,
+  description: `Update entry fields.
+
+Any field can be updated except read-only ones (name, source_file, content_hash, created, modified — both dates are auto-managed).
+Array fields (tags, aliases, related) must be arrays.
+
+Usage:
+- Pass array of {property, value} objects
+- Arrays replace entirely, not merge
+- Use "get" first to see current values before updating
+
+Example: fields: [{property: "project", value: "Work"}, {property: "tags", value: ["work/task"]}, {property: "state", value: "draft"}]`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Entry name' },
+      fields: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            property: { type: 'string', description: 'Field name' },
+            value: { description: 'New value (string or array)' },
+          },
+          required: [ 'property', 'value' ],
+        },
+        description: 'Array of {property, value} objects',
+      },
+    },
+    required: [ 'name', 'fields' ],
+  },
+}
+
+export const injectFields = 'write'
+
+export async function handle ({ name, fields }) {
   if (!name) {
     throw new ApiError(400, 'Missing required field: name')
   }

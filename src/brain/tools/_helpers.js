@@ -113,8 +113,6 @@ export function entryProps (entry) {
 /**
  * Format entry as YAML frontmatter + markdown content.
  * Same format as stored on disk in Obsidian.
- * @param {object} entry
- * @returns {string}
  */
 export function formatEntry (entry) {
   const frontmatter = {}
@@ -128,20 +126,12 @@ export function formatEntry (entry) {
   return matter.stringify(entry.content || '', ordered).trim()
 }
 
-/**
- * Find entry by name (case-insensitive).
- * @param {string} name
- * @returns {object|null}
- */
+/** Find entry by name (case-insensitive). */
 export function findEntry (name) {
   return store.entries.get(name)
 }
 
-/**
- * Format "entry not found" message with semantic suggestions.
- * @param {string} name - Entry name that wasn't found
- * @returns {Promise<string>}
- */
+/** Format "entry not found" message with semantic suggestions. */
 export async function entryNotFoundMessage (name) {
   let response = `Entry "${ name }" not found.`
 

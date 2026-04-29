@@ -1,17 +1,29 @@
-import { obsidian }                        from '../modules/obsidian.js'
-import { ApiError }                        from '../lib/api.js'
-import { validateName }                    from '../lib/utils.js'
-import { entryNotFoundMessage, findEntry } from './_helpers.js'
-import { createBus }                       from '../lib/bus.js'
+import { TOOLS }                            from '../../shared/constants.js'
+import { obsidian }                         from '../modules/obsidian.js'
+import { ApiError }                         from '../lib/api.js'
+import { validateName }                     from '../lib/utils.js'
+import { entryNotFoundMessage, findEntry }  from './_helpers.js'
+import { createBus }                        from '../lib/bus.js'
 
 const bus = createBus('rename')
 
-/**
- * Rename entry and update all wikilinks across the vault.
- * @param {{ name: string, new_name: string }} body
- * @returns {Promise<{ text: string }>}
- */
-export async function handleRename ({ name, new_name }) {
+export const tool = {
+  name: TOOLS.RENAME,
+  description: `Rename an entry and update all wikilinks across the knowledge base.
+
+Backlinks across all entries will be updated automatically.
+New name must be unique.`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Current entry name' },
+      new_name: { type: 'string', description: 'New entry name — must be filesystem-safe (no \\ / : * ? " < > |)' },
+    },
+    required: [ 'name', 'new_name' ],
+  },
+}
+
+export async function handle ({ name, new_name }) {
   if (!name) throw new ApiError(400, 'Missing required field: name')
   if (!new_name) throw new ApiError(400, 'Missing required field: new_name')
   if (name === new_name) throw new ApiError(400, 'New name is the same as current name')
