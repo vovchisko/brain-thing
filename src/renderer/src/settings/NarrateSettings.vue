@@ -2,6 +2,13 @@
 import { computed, ref, toRaw, watch } from 'vue'
 import { settings } from './state.js'
 
+const ttsOn = computed(() => !!settings.vault.value?.features?.tts)
+
+async function toggleTts () {
+  const features = { ...(settings.vault.value?.features || {}), tts: !ttsOn.value }
+  await settings.saveVault({ features })
+}
+
 const narrate = ref({ rules: [] })
 const original = ref(null)
 const saved = ref(false)
@@ -31,7 +38,7 @@ function cancel () {
 
 function addRule () {
   narrate.value.rules.push({
-    tag: '', field: '', value: '',
+    tag: '', attribute: '', value: '',
     voice: 'ava', language: 'en',
     collection: '', album: '', artist: '',
     priority: 0, force: false,
@@ -71,9 +78,19 @@ async function rerunJobs () {
 
 <template>
   <div class="nar">
+    <div class="nar_tts">
+      <div>
+        <div class="nar_tts_name">TTS Narration</div>
+        <div class="g-hint">Watch entries and send matching ones to a local TTS server.</div>
+      </div>
+      <button class="g-btn nar_tts_toggle" :class="{ _on: ttsOn }" @click="toggleTts">
+        {{ ttsOn ? 'ON' : 'OFF' }}
+      </button>
+    </div>
+
     <label class="g-label">Narrate rules</label>
     <div class="g-hint nar_intro">
-      First match wins. An entry is narrated if at least one rule's match condition (tag prefix and/or field=value) is true.
+      First match wins. An entry is narrated if at least one rule's match condition (tag prefix and/or attribute=value) is true.
       Voice is required.
     </div>
 
@@ -95,8 +112,8 @@ async function rerunJobs () {
             <input v-model="rule.tag" class="g-input" placeholder="story" spellcheck="false" />
           </label>
           <label class="nar_field">
-            <span class="nar_lbl">field</span>
-            <input v-model="rule.field" class="g-input" placeholder="project" spellcheck="false" />
+            <span class="nar_lbl">attribute</span>
+            <input v-model="rule.attribute" class="g-input" placeholder="project" spellcheck="false" />
           </label>
           <label class="nar_field">
             <span class="nar_lbl">value</span>
@@ -194,6 +211,36 @@ async function rerunJobs () {
     margin-bottom: var(--gap-md);
   }
 
+  &_tts {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-md);
+    padding-bottom: var(--gap-md);
+    margin-bottom: var(--gap-md);
+    border-bottom: 1px solid var(--bg-btn);
+
+    &_name {
+      font-size: var(--font-ui);
+      color: var(--text);
+      margin-bottom: var(--gap-xs);
+    }
+
+    &_toggle {
+      padding: 4px 14px;
+      font-size: var(--font-label);
+      font-weight: 600;
+      min-width: 48px;
+      flex-shrink: 0;
+
+      &._on {
+        background: var(--positive);
+        color: var(--text);
+        &:hover { background: var(--positive-hover); }
+      }
+    }
+  }
+
   &_block {
     margin-bottom: var(--gap-md);
 
@@ -205,7 +252,7 @@ async function rerunJobs () {
     }
 
     &_title {
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -227,7 +274,7 @@ async function rerunJobs () {
     }
 
     &_idx {
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       color: var(--text-dim);
     }
   }
@@ -251,7 +298,7 @@ async function rerunJobs () {
   }
 
   &_lbl {
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     color: var(--text-dim);
   }
 
@@ -259,7 +306,7 @@ async function rerunJobs () {
     all: unset;
     cursor: pointer;
     color: var(--text-dim);
-    font-size: var(--font-md);
+    font-size: var(--font-heading);
     width: 20px;
     text-align: center;
     flex-shrink: 0;
@@ -306,14 +353,14 @@ async function rerunJobs () {
     }
 
     &_name {
-      font-size: var(--font-sm);
+      font-size: var(--font-ui);
       color: var(--text);
       margin-bottom: var(--gap-xs);
     }
 
     &_result {
       margin-top: var(--gap-sm);
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       color: var(--text-dim);
     }
 

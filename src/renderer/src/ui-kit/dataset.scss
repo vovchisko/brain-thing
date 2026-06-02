@@ -1,0 +1,248 @@
+@use "./scss/typo" as *;
+@use "./scss/ui" as *;
+
+// Dataset-tab layout/decoration classes. Base vars only — no alias layer.
+.dataset-app {
+  display: flex;            // app shell: left sidebar + main content
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+
+  // -- app shell ------------------------------------------------------------
+  .ds-side {
+    flex-shrink: 0;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: spacing(100);
+    padding: spacing(300, 200);
+    background: var(--bg-raised);
+    border-right: 1px solid var(--bg-btn);
+    overflow-y: auto;
+    @include scroll-styled();
+
+    hr {
+      width: 100%;
+      border: none;
+      border-top: 1px solid var(--bg-btn);
+      margin: spacing(200) 0;
+    }
+  }
+
+  .ds-side_item {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    padding: spacing(200, 300);
+    border-radius: var(--radius-sm);
+    color: var(--text-soft);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover  { background: var(--bg-btn); color: var(--text); }
+    &._active { background: var(--bg-btn); color: var(--accent-hover); }
+  }
+
+  .ds-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  // -- three-line header title (name / description / meta) ------------------
+  .lt-titles {
+    display: flex;
+    flex-direction: column;
+    gap: spacing(100);
+    min-width: 0;
+
+    & > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    &_name { font-size: var(--font-heading); font-weight: bold; }
+    &_desc { color: var(--text-soft); font-size: 13px; }
+    &_meta { color: var(--text-soft); font-size: 12px; }
+  }
+
+  // -- left-aligned toolbar under the header (create + filters) -------------
+  .lt-toolbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: spacing(300);
+    padding: spacing(0, 300, 300, 300);
+  }
+
+  // -- shared data table ----------------------------------------------------
+  .lt-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th, td {
+      text-align: left;
+      padding: spacing(200) spacing(300);
+      border-bottom: 1px solid var(--bg-btn);
+      font-size: 13px;
+    }
+
+    th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-soft);
+      background: var(--bg-raised);
+    }
+
+    code {
+      background: var(--bg-raised);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    &._fixed {
+      table-layout: fixed;
+      th, td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
+
+    &._rows tbody tr {
+      cursor: pointer;
+      &:hover { background: var(--bg-raised); }
+    }
+  }
+
+  // -- two-column form grid (label | control), e.g. in modals --------------
+  .lt-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: spacing(300);
+    align-items: center;
+
+    & > label { font-weight: bold; }
+    .ui-input, .ui-select { width: 100%; }
+  }
+
+  .lt-code {
+    justify-self: start;
+    background: var(--bg-raised);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  .lt-muted { color: var(--text-soft); }
+
+  .lt-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent-hover);
+    border: 1px solid var(--accent-hover);
+    border-radius: 4px;
+    padding: 0 4px;
+  }
+
+  .lt-flex-v {
+    display: flex;
+    flex-direction: column;
+    gap: spacing(400);
+  }
+
+  .lt-flex-h {
+    display: flex;
+    gap: spacing(300);
+    align-items: flex-start;
+
+    & > hr {
+      flex: 1;
+      border: none;
+      height: 2em;
+      margin-left: 1em;
+      padding-left: 1em;
+      width: 0;
+      border-left: 1px solid var(--bg-raised);
+    }
+  }
+
+  .lt-screen {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+
+    &_header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: spacing(300);
+      gap: spacing(400);
+
+      h1 {
+        font-size: var(--font-heading);
+        font-weight: bold;
+        margin: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    &_content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: spacing(0, 300, 300, 300);
+      @include scroll-styled();
+    }
+  }
+
+  .lt-form {
+    display: flex;
+    flex-direction: column;
+    gap: spacing(500);
+
+    &_fields {
+      display: flex;
+      flex-direction: column;
+      gap: spacing(400);
+
+      &-item {
+        display: flex;
+        flex-direction: column;
+        gap: spacing(200);
+
+        & > label {
+          font-weight: bold;
+        }
+
+        &_readonly {
+          padding: spacing(200);
+          color: var(--text-soft);
+          border-radius: var(--radius-sm);
+          height: var(--ctl-h);
+          border: 1px dashed var(--text-dim);
+          display: flex;
+          align-items: center;
+        }
+      }
+    }
+
+    &_actions-buttons {
+      display: flex;
+      gap: spacing(300);
+      justify-content: flex-end;
+
+      & > hr {
+        display: flex;
+        flex: 1;
+        border: 0 none;
+      }
+    }
+  }
+}

@@ -1,0 +1,162 @@
+@use "./scss/typo" as *;
+@use "./scss/ui" as *;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE design-token source. One level — every value is a literal or a single
+// self-reference, no alias chains. Components reference these directly; there is
+// no separate .css token file (Vite compiles this SCSS).
+//
+// How to use: reach for a semantic token, never a raw hex/px. Colour = role
+// (surface / text / accent), not shade. Type = role (heading / ui / label).
+// Spacing comes from the spacing() helper (scss/typo). The only vars overridden
+// at runtime are the three --ui-* theme hooks (see bottom).
+// ─────────────────────────────────────────────────────────────────────────────
+:root {
+  // -- surfaces (backgrounds, dark → light) ---------------------------------
+  --bg:           #1b1b1f;   // app background
+  --bg-raised:    #222222;   // raised surfaces: cards, table headers, dropdowns, code
+  --bg-input:     #282828;   // input / field background
+  --bg-btn:       #32363f;   // button & control background, subtle dividers
+  --bg-btn-hover: #414853;   // button/control hover
+
+  --border:       #515c67;   // borders, dividers, outlines
+
+  // -- text (high → low emphasis) -------------------------------------------
+  --text:      #e8e8ec;      // primary text
+  --text-soft: #9a9aa6;      // secondary / muted text, meta
+  --text-dim:  #5c5c6e;      // disabled & placeholder text
+
+  // -- accents (semantic colour) --------------------------------------------
+  --accent:        #5b8def;  // primary accent: links, focus, primary action
+  --accent-hover:  #4a7de0;  // accent hover / active
+  --positive:      #587e00;  // success
+  --positive-hover:#007732;  // success hover
+  --negative:      #e06060;  // danger / error / destructive
+  --warning:       #d4a740;  // warning
+  --caution:       #d08545;  // caution (warmer than warning)
+
+  // rgb channel triples — only for rgba() tints (hex can't go inside rgba()).
+  --rgb-text:     232, 232, 236;   // = --text  (hover glow)
+  --rgb-accent:   91, 141, 239;    // = --accent (focus ring, default theme)
+  --rgb-soft:     154, 154, 166;   // = --text-soft (secondary theme, disabled fills)
+  --rgb-negative: 224, 96, 96;     // = --negative (negative theme)
+
+  // -- type — three semantic roles ------------------------------------------
+  // "Regular text" has no token: it is the body default (--font-ui), inherited.
+  --font-heading: 18px;      // screen/section titles, h1, modal & settings headers
+  --font-ui:      14px;      // default text — body, controls, inputs, tables
+  --font-label:   12px;      // labels, hints, meta, captions, table headers, badges
+  --font-mono:    monospace; // code / ids
+
+  // -- spacing & radius -----------------------------------------------------
+  // Spacing is applied via spacing(100..500) (scss/typo); these gaps back it.
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 16px;
+  --gap-lg: 24px;
+
+  --radius-sm: 4px;          // inner elements: inputs, chips
+  --radius-md: 6px;          // cards, buttons, modals
+
+  // form-control padding (used by global .g-* + atoms)
+  --input-py: 8px;
+  --input-px: 10px;
+  --btn-py:   8px;
+  --btn-px:   16px;
+
+  // -- control metrics ------------------------------------------------------
+  --ctl-h:      36px;        // shared height of every input-like control
+  --transition: linear 200ms;// shared transition for interactive states
+
+  // -- z-index --------------------------------------------------------------
+  --z-modal-backdrop: 3000;
+  --z-modal:          3001;
+  --z-pop:            9999;  // dropdowns / popovers above everything
+
+  // -- runtime theme hooks --------------------------------------------------
+  // The ONLY vars overridden at runtime: a theme class on a ui-* element
+  // (.ui-secondary / .ui-negative) recolours it. Defaults here; overrides below.
+  --ui-pal:         var(--accent);   // current "active" colour (focus, accents)
+  --ui-pal-lateral: var(--border);   // current border colour
+  --ui-rgb:         var(--rgb-accent);// current colour as rgb (for rgba tints)
+}
+
+// Theme override classes — e.g. <ui-button class="ui-negative">. Only these two
+// are used in the app; extend here if the palette ever grows.
+.ui-secondary {
+  --ui-pal: var(--text-soft);
+  --ui-rgb: var(--rgb-soft);
+}
+.ui-negative {
+  --ui-pal:         var(--negative);
+  --ui-pal-lateral: var(--negative);
+  --ui-rgb:         var(--rgb-negative);
+}
+
+// -- global resets ----------------------------------------------------------
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+ul { list-style: none; }
+
+body {
+  min-height: 100vh;
+  min-width: 100%;
+  padding: 0;
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-size: var(--font-ui);          // the default text size — regular text inherits this
+  line-height: 1.6;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  height: 100vh;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bg-btn-hover); }
+
+// dataset-tab element resets
+.dataset-app {
+  hr {
+    border-width: 0 0 1px 0;
+    border-color: var(--bg-btn);   // dimmed hairline divider
+    border-style: solid;
+    margin: 8px 0;
+    padding: 0;
+  }
+
+  option { background: var(--bg-input); }
+
+  svg { fill: none; }
+
+  // disabled field text — set once on the native elements, not per component
+  input:disabled,
+  textarea:disabled,
+  select:disabled {
+    color: var(--text-dim);
+  }
+}
+
+@keyframes fx-spin {
+  0% { transform: rotate(0); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}

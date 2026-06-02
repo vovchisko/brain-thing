@@ -3,8 +3,8 @@ import { computed } from 'vue'
 import { state }    from '../state.js'
 import LogPanel     from '../components/LogPanel.vue'
 
-const topFields = computed(() =>
-    Object.entries(state.fields)
+const topAttributes = computed(() =>
+    Object.entries(state.attributes)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10),
 )
@@ -34,12 +34,12 @@ const projectList = computed(() =>
         </div>
       </div>
 
-      <div v-if="topFields.length" class="fields">
-        <h5>Fields</h5>
-        <div class="fields-list">
-          <div v-for="[name, count] in topFields" :key="name" class="fields_item">
-            <span class="fields_item-name">{{ name }}</span>
-            <span class="fields_item-count">{{ count }}</span>
+      <div v-if="topAttributes.length" class="attributes">
+        <h5>Attributes</h5>
+        <div class="attributes-list">
+          <div v-for="[name, count] in topAttributes" :key="name" class="attributes_item">
+            <span class="attributes_item-name">{{ name }}</span>
+            <span class="attributes_item-count">{{ count }}</span>
           </div>
         </div>
       </div>
@@ -79,7 +79,7 @@ const projectList = computed(() =>
   display: flex;
   gap: var(--gap-sm);
   flex-direction: column;
-  font-size: var(--font-xs);
+  font-size: var(--font-label);
   color: var(--text-dim);
 
   &_n {
@@ -91,7 +91,7 @@ const projectList = computed(() =>
   }
 }
 
-.fields {
+.attributes {
   &-list {
     display: flex;
     gap: var(--gap-sm);
@@ -106,7 +106,7 @@ const projectList = computed(() =>
     padding: 1px 6px;
     border-radius: var(--radius-sm);
     background: var(--bg-btn);
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
 
     &-name {
       color: var(--text-soft);
@@ -118,6 +118,8 @@ const projectList = computed(() =>
   }
 }
 
+
+
 .big {
   h2 {
     font-size: 48px;
@@ -127,7 +129,7 @@ const projectList = computed(() =>
   }
 
   p {
-    font-size: var(--font-sm);
+    font-size: var(--font-ui);
     color: var(--text-dim);
   }
 }
@@ -155,7 +157,7 @@ const projectList = computed(() =>
     }
 
     &-name {
-      font-size: var(--font-sm);
+      font-size: var(--font-ui);
       font-weight: 600;
       color: var(--text-soft);
       margin-top: var(--gap-xs);

@@ -13,7 +13,10 @@ export class ApiError extends Error {
 export function wrap (name, handler) {
   return async (request) => {
     try {
-      await store.ready.wait()
+      const ready = await store.ready.wait()
+      if (ready?.error) {
+        return { text: `Brain failed to start: ${ ready.error }. Check the app status and restart if needed.` }
+      }
       return await handler(request.body)
     } catch (err) {
       if (err instanceof ApiError) {

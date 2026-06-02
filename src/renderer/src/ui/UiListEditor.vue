@@ -60,14 +60,14 @@ function onKeydown(e) {
     border-radius: 4px;
     background: var(--bg-btn);
     color: var(--text);
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     font-family: monospace;
   }
   &_remove {
     all: unset;
     cursor: pointer;
     color: var(--text-dim);
-    font-size: var(--font-sm);
+    font-size: var(--font-ui);
     line-height: 1;
     padding: 0 2px;
     &:hover { color: var(--negative); }
@@ -79,7 +79,7 @@ function onKeydown(e) {
   &_input {
     flex: 1;
     padding: 6px 8px;
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
   }
 }
 </style>

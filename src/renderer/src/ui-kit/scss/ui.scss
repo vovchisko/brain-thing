@@ -1,0 +1,49 @@
+@mixin scroll-styled($hide: false) {
+  &::-webkit-scrollbar-track {
+    background-color: inherit;
+  }
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    border-radius: 6px;
+    background-color: inherit;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border: 1px solid inherit;
+    border-radius: 6px;
+    @if ($hide) {
+      background-color: inherit;
+    } @else {
+      background-color: var(--ui-pal);
+    }
+  }
+
+  ::-webkit-scrollbar-corner {
+    background-color: transparent !important;
+    border: 0 none !important;
+    box-shadow: none !important;
+  }
+  @if ($hide) {
+    &:focus::-webkit-scrollbar-thumb,
+    &:hover::-webkit-scrollbar-thumb, {
+      background-color: var(--ui-pal);
+    }
+  }
+}
+
+@mixin scrollbar-invisible() {
+  &::-webkit-scrollbar {
+    width: 0;
+    background-color: transparent;
+    display: none;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -1,0 +1,29 @@
+@use "sass:map";
+
+// spacing() compiles to a base token or a literal — one level, no --lt-sp* vars.
+// (font sizes are plain --font-* vars now; the old typo() mixin was a dead layer.)
+$_sp: (100: 3px, 200: var(--gap-xs), 300: var(--gap-sm), 400: 12px, 500: var(--gap-md));
+
+@function _spacing($code) {
+  @if (
+          $code == 0 or
+      $code == auto or
+      $code == unset or
+      $code == null
+  ) {
+    @return $code;
+  }
+
+  @return map.get($_sp, $code);
+}
+
+@function spacing($t, $r: null, $b: null, $l: null) {
+  @return _spacing($t) _spacing($r) _spacing($b) _spacing($l);
+}
+
+@mixin ellipsis($display: block) {
+  display: $display;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

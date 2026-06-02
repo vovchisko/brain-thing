@@ -1,4 +1,3 @@
-import { TOOLS }            from '../../shared/constants.js'
 import { store }            from '../modules/store.js'
 import { formatResultList } from './_helpers.js'
 import { ApiError }         from '../lib/api.js'
@@ -6,31 +5,9 @@ import { createBus }        from '../lib/bus.js'
 
 const bus = createBus('what_is')
 
-export const tool = {
-  name: TOOLS.WHAT_IS,
-  description: `Semantic search - finds entries by meaning, not just keywords.
-
-Always returns a ranked list (up to 5) with score, project/tags, a short preview, and word count. To read an entry's full content, follow up with the \`get\` tool.
-
-Usage:
-- Describe what you're looking for in natural language
-- Works even if you don't know exact terminology
-- Filter by tags or project to narrow results
-- Word count helps estimate how much content a \`get\` will return`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      query: { type: 'string', description: 'What to search for' },
-      tags: { type: 'array', items: { type: 'string' }, description: 'Filter by tags (prefix match, OR)' },
-      project: { type: 'string', description: 'Filter by project' },
-    },
-    required: ['query'],
-  },
-}
-
 export async function handle ({ query, tags, project } = {}) {
   if (typeof query !== 'string' || !query.trim()) {
-    throw new ApiError(400, 'Missing required field: query (non-empty string)')
+    throw new ApiError(400, 'Missing required: query (non-empty string)')
   }
   const secondary = project ? `in ${ project }` : tags?.length ? `in tags: ${ tags.join(', ') }` : null
   const ev = bus.op(`"${ query }"`, secondary)

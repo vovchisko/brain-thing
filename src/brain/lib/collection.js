@@ -53,14 +53,6 @@ class Collection {
     return true
   }
 
-  /** Find first match by predicate */
-  find (predicate) {
-    for (const entity of this._array) {
-      if (predicate(entity)) return entity
-    }
-    return null
-  }
-
   /** Filter by predicate */
   filter (predicate) {
     return this._array.filter(predicate)

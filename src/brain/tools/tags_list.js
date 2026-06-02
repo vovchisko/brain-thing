@@ -1,24 +1,7 @@
-import { TOOLS }     from '../../shared/constants.js'
 import { store }     from '../modules/store.js'
 import { createBus } from '../lib/bus.js'
 
 const bus = createBus('tags_list')
-
-export const tool = {
-  name: TOOLS.TAGS_LIST,
-  description: `Browse tags in the knowledge base.
-
-Without parameters: all tags with entry counts.
-With tag: subtags under that prefix + entries at that level.
-
-Use to navigate the tag hierarchy before searching.`,
-  inputSchema: {
-    type: 'object',
-    properties: {
-      tag: { type: 'string', description: 'Tag prefix to drill into (e.g. "eo" or "eo/game")' },
-    },
-  },
-}
 
 export async function handle ({ tag } = {}) {
   bus.info(tag || 'all tags')

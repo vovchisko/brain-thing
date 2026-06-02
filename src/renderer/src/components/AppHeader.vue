@@ -6,6 +6,7 @@ const emit = defineEmits([ 'update:modelValue' ])
 
 const tabs = [
   { id: 'stats', label: 'Stats' },
+  { id: 'dataset', label: 'Data' },
   { id: 'settings', label: 'Settings' },
 ]
 </script>
@@ -38,7 +39,7 @@ const tabs = [
   flex-shrink: 0;
 
   &_title {
-    font-size: var(--font-sm);
+    font-size: var(--font-ui);
     font-weight: 600;
     color: var(--text);
   }
@@ -51,7 +52,7 @@ const tabs = [
       all: unset;
       cursor: pointer;
       padding: 6px 12px;
-      font-size: var(--font-sm);
+      font-size: var(--font-ui);
       color: var(--text-dim);
       border-radius: 4px;
 

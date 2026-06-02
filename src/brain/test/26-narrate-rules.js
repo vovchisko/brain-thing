@@ -1,4 +1,5 @@
 import { __test } from '../modules/tts.js'
+import { cfg }    from '../config.js'
 
 export default async function ({ assert }) {
   const { ruleFor, ruleSignature, setConfig } = __test
@@ -15,19 +16,19 @@ export default async function ({ assert }) {
   assert(ruleFor({ tags: ['log'] }) === null, 'tag mismatch returns null')
   assert(ruleFor({ tags: [] }) === null, 'no tags returns null')
 
-  // --- field+value match ---
-  setRules([{ field: 'project', value: 'BT', voice: 'ava' }])
-  assert(ruleFor({ project: 'BT' }) !== null, 'field=value matches')
-  assert(ruleFor({ project: 'OTHER' }) === null, 'field mismatch returns null')
-  assert(ruleFor({}) === null, 'missing field returns null')
+  // --- attribute+value match ---
+  setRules([{ attribute: 'project', value: 'BT', voice: 'ava' }])
+  assert(ruleFor({ project: 'BT' }) !== null, 'attribute=value matches')
+  assert(ruleFor({ project: 'OTHER' }) === null, 'attribute mismatch returns null')
+  assert(ruleFor({}) === null, 'missing attribute returns null')
 
-  // --- AND: tag and field both required ---
-  setRules([{ tag: 'a', field: 'project', value: 'BT', voice: 'ava' }])
+  // --- AND: tag and attribute both required ---
+  setRules([{ tag: 'a', attribute: 'project', value: 'BT', voice: 'ava' }])
   assert(ruleFor({ tags: ['a-1'], project: 'BT' }) !== null, 'both match → match')
-  assert(ruleFor({ tags: ['a-1'], project: 'X' }) === null, 'tag yes field no → no match')
-  assert(ruleFor({ tags: ['z'], project: 'BT' }) === null, 'tag no field yes → no match')
+  assert(ruleFor({ tags: ['a-1'], project: 'X' }) === null, 'tag yes attribute no → no match')
+  assert(ruleFor({ tags: ['z'], project: 'BT' }) === null, 'tag no attribute yes → no match')
 
-  // --- empty rule (no tag, no field) is skipped ---
+  // --- empty rule (no tag, no attribute) is skipped ---
   setRules([{ voice: 'ava' }])
   assert(ruleFor({ tags: ['anything'], project: 'X' }) === null, 'empty rule never matches')
 
@@ -46,4 +47,7 @@ export default async function ({ assert }) {
   assert(sig1 !== sig2, 'signature changes with voice')
   assert(sig1 !== sig3, 'signature changes with force')
   assert(sig1 === ruleSignature(baseRule), 'signature stable for same input')
+
+  // Restore real config so subsequent tests (or live tts.handleVaultChange) see actual state
+  setConfig(cfg.state)
 }

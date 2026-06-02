@@ -46,14 +46,14 @@ async function save () {
   width: 100%;
 
   &_desc {
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     color: var(--text-dim);
     margin-bottom: var(--gap-sm);
   }
   &_section { margin-bottom: var(--gap-sm); }
   &_sub {
     display: block;
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     color: var(--text-soft);
     margin-bottom: var(--gap-xs);
   }

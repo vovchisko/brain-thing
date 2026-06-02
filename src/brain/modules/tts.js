@@ -14,6 +14,7 @@ let CHUNKS_FILE = null
 let chunkState = {}
 let lastTtsOn = false
 let lastRulesHash = ''
+let lastVaultPath = ''
 
 function loadChunkState () {
   try { chunkState = JSON.parse(fs.readFileSync(CHUNKS_FILE, 'utf8')) } catch { chunkState = {} }
@@ -35,14 +36,14 @@ function ruleFor (entry) {
   const rules = _config?.vault?.narrate?.rules || []
   for (const r of rules) {
     const hasTag = !!r.tag
-    const hasField = !!(r.field && r.value != null && r.value !== '')
-    if (!hasTag && !hasField) continue
+    const hasAttr = !!(r.attribute && r.value != null && r.value !== '')
+    if (!hasTag && !hasAttr) continue
 
     const tagOk = hasTag ? (entry.tags?.some(t => t.startsWith(r.tag)) ?? false) : true
     if (!tagOk) continue
 
-    const fieldOk = hasField ? entry[r.field] === r.value : true
-    if (!fieldOk) continue
+    const attrOk = hasAttr ? entry[r.attribute] === r.value : true
+    if (!attrOk) continue
 
     return r
   }
@@ -252,7 +253,7 @@ async function flushChunks () {
 
 async function bootstrap () {
   TTS_URL = `http://${ _config.const.tts.host }:${ _config.const.tts.port }`
-  CHUNKS_FILE = path.join(_config.system.dataDir, 'tts-chunks.json')
+  CHUNKS_FILE = path.join(_config.system.vaultPath, '.brain-thing', 'tts-chunks.json')
   loadChunkState()
 
   bus.info('init', 'Waiting for TTS...')
@@ -271,6 +272,10 @@ function shutdown () {
 }
 
 async function handleVaultChange () {
+  // Vault swap in progress — server.hotSwap() will call reload() after the store rebuilds.
+  // Reacting here would run applyAll against stale entries from the old vault.
+  if (_config.system.vaultPath !== lastVaultPath) return
+
   const ttsOn = !!_config.vault.features?.tts
   const rulesHash = JSON.stringify(_config.vault.narrate?.rules || [])
 
@@ -291,8 +296,30 @@ async function handleVaultChange () {
   }
 }
 
+/** Re-sync TTS state for a freshly hot-swapped vault. Called from server.hotSwap() after store rebuilds. */
+async function reload () {
+  if (!_config) return
+
+  // Drop in-memory chunkState — keys belong to the previous vault
+  chunkState = {}
+  lastVaultPath = _config.system.vaultPath
+  lastRulesHash = JSON.stringify(_config.vault.narrate?.rules || [])
+
+  const ttsOn = !!_config.vault.features?.tts
+
+  if (!ttsOn) {
+    if (lastTtsOn) shutdown()
+    lastTtsOn = false
+    return
+  }
+
+  lastTtsOn = true
+  bootstrap().catch(err => bus.error('reload', err.message))
+}
+
 function init (config) {
   _config = config
+  lastVaultPath = config.system.vaultPath
   cfg.vault.changed.on(handleVaultChange)
   if (config.vault.features?.tts) {
     lastTtsOn = true
@@ -317,6 +344,11 @@ async function onFilesChanged (filePaths) {
   }
 }
 
-export const tts = { init, onFilesChanged, isRunning, flushChunks, rerunJobs }
+export const tts = { init, reload, onFilesChanged, isRunning, flushChunks, rerunJobs }
 
-export const __test = { ruleFor, ruleSignature, setConfig: (c) => { _config = c } }
+export const __test = {
+  ruleFor,
+  ruleSignature,
+  setConfig: (c) => { _config = c },
+  getChunksFile: () => CHUNKS_FILE,
+}

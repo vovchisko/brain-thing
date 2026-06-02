@@ -28,7 +28,7 @@ const api = {
     onStatus:  (cb) => ipcRenderer.on(IPC.STAT_STATUS, (_e, d) => cb(d)),
     onEntries: (cb) => ipcRenderer.on(IPC.STAT_ENTRIES, (_e, d) => cb(d)),
     onIssues:  (cb) => ipcRenderer.on(IPC.STAT_ISSUES, (_e, d) => cb(d)),
-    onFields:  (cb) => ipcRenderer.on(IPC.STAT_FIELDS, (_e, d) => cb(d)),
+    onAttributes:  (cb) => ipcRenderer.on(IPC.STAT_ATTRIBUTES, (_e, d) => cb(d)),
     onProjects: (cb) => ipcRenderer.on(IPC.STAT_PROJECTS, (_e, d) => cb(d)),
   },
   mcp: {
@@ -43,6 +43,13 @@ const api = {
   tts: {
     flushChunks: () => ipcRenderer.invoke(IPC.TTS_FLUSH_CHUNKS),
     rerunJobs: () => ipcRenderer.invoke(IPC.TTS_RERUN_JOBS),
+  },
+  tools: {
+    list: () => ipcRenderer.invoke(IPC.TOOLS_LIST),
+  },
+  dataset: {
+    call: (name, payload) => ipcRenderer.invoke(IPC.DATASET_CALL, name, payload),
+    on: (cb) => ipcRenderer.on(IPC.DATASET_EVENT, (_e, ev) => cb(ev)),
   },
   pickFolder: () => ipcRenderer.invoke(IPC.PICK_FOLDER),
   isDirectory: (p) => ipcRenderer.invoke(IPC.FS_IS_DIR, p),

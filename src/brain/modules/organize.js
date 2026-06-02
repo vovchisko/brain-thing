@@ -2,8 +2,8 @@ import path from 'path'
 
 function matchRule (entry, rule) {
   const tagOk = !rule.tag || entry.tags?.some(t => t === rule.tag || t.startsWith(rule.tag + '/'))
-  const fieldOk = !rule.field || entry[rule.field] === rule.value
-  return (rule.tag || rule.field) && tagOk && fieldOk
+  const attrOk = !rule.attribute || entry[rule.attribute] === rule.value
+  return (rule.tag || rule.attribute) && tagOk && attrOk
 }
 
 function resolveFolder (entry, config) {

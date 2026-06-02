@@ -17,7 +17,7 @@ export const IPC = {
   LOG_BUFFER: 'log:buffer',
   STAT_ENTRIES: 'stat:entries',
   STAT_ISSUES: 'stat:issues',
-  STAT_FIELDS: 'stat:fields',
+  STAT_ATTRIBUTES: 'stat:attributes',
   STAT_PROJECTS: 'stat:projects',
   STAT_STATUS: 'stat:status',
   STAT_GET: 'stat:get',
@@ -28,4 +28,7 @@ export const IPC = {
   AUTOSTART_SET: 'autostart:set',
   TTS_FLUSH_CHUNKS: 'tts:flush-chunks',
   TTS_RERUN_JOBS: 'tts:rerun-jobs',
+  TOOLS_LIST: 'tools:list',
+  DATASET_CALL: 'dataset:call',
+  DATASET_EVENT: 'dataset:event',
 }

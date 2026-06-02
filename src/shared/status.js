@@ -3,7 +3,8 @@ export const STATUS = {
   STARTUP:       'startup',
   DOWNLOADING:   'downloading-embedding',
   SCANNING:      'scanning',
-  INDEXING:       'indexing',
+  INDEXING:      'indexing',
   REINDEXING:    're-indexing',
   READY:         'ready',
+  ERROR:         'error',
 }

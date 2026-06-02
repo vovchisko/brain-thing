@@ -1,28 +1,23 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref }  from 'vue'
 import { settings }        from './state.js'
 import GeneralSettings     from './GeneralSettings.vue'
-import FieldSettings       from './FieldSettings.vue'
+import AttributeSettings   from './AttributeSettings.vue'
 import IgnoreSettings      from './IgnoreSettings.vue'
 import OrganizeSettings    from './OrganizeSettings.vue'
 import NarrateSettings     from './NarrateSettings.vue'
+import ToolsSettings       from './ToolsSettings.vue'
 
-const ttsOn = computed(() => !!settings.vault.value?.features?.tts)
-
-const sections = computed(() => {
-  const list = [
-    { id: 'general', label: 'General' },
-    { id: 'fields', label: 'Fields' },
-    { id: 'ignore', label: 'Ignore' },
-    { id: 'organize', label: 'Organize' },
-  ]
-  if (ttsOn.value) list.push({ id: 'narrate', label: 'Narrate' })
-  return list
-})
+const sections = [
+  { id: 'general', label: 'General' },
+  { id: 'attributes', label: 'Attributes' },
+  { id: 'ignore', label: 'Ignore' },
+  { id: 'organize', label: 'Organize' },
+  { id: 'narrate', label: 'Narrate' },
+  { id: 'tools', label: 'Tools' },
+]
 
 const active = ref('general')
-
-watch(ttsOn, (on) => { if (!on && active.value === 'narrate') active.value = 'general' })
 
 onMounted(settings.load)
 </script>
@@ -41,10 +36,11 @@ onMounted(settings.load)
     <div class="settings_scroll">
       <div class="settings_scroll_content">
         <GeneralSettings  v-if="active === 'general'" />
-        <FieldSettings    v-if="active === 'fields'" />
+        <AttributeSettings v-if="active === 'attributes'" />
         <IgnoreSettings   v-if="active === 'ignore'" />
         <OrganizeSettings v-if="active === 'organize'" />
-        <NarrateSettings  v-if="active === 'narrate' && ttsOn" />
+        <NarrateSettings  v-if="active === 'narrate'" />
+        <ToolsSettings    v-if="active === 'tools'" />
       </div>
     </div>
   </div>
@@ -63,7 +59,7 @@ onMounted(settings.load)
       all: unset;
       cursor: pointer;
       padding: var(--gap-sm) var(--gap-sm);
-      font-size: var(--font-sm);
+      font-size: var(--font-ui);
       color: var(--text-dim);
       border-radius: var(--radius-sm);
       text-align: left;

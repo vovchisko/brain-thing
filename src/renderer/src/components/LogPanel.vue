@@ -70,7 +70,7 @@ $tts-badge: #1a5a5a;
       flex-shrink: 0;
       padding: 0 5px;
       border-radius: 3px;
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       font-weight: 600;
       min-width: 68px;
       text-align: center;

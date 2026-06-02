@@ -151,20 +151,15 @@ export function countWords (text) {
 }
 
 /**
- * Build a human-readable field listing for MCP tool descriptions.
- * @param {object} state - cfg.state (needs .vault.fields and .vault.features)
- * @param {'write'|'search'} scope - 'write' excludes auto-managed date fields (created/modified)
+ * Build a human-readable listing of configured attributes.
+ * @param {object} state - cfg.state (needs .vault.attributes)
  */
-export function describeFields (state, scope) {
-  const fields = state.vault.fields || {}
-  const features = state.vault.features || {}
-  const AUTO = new Set(['created', 'modified'])
+export function describeAttributes (state) {
+  const attributes = state.vault.attributes || {}
   const lines = []
-  for (const [name, type] of Object.entries(fields)) {
-    if (scope === 'write' && AUTO.has(name)) continue
-    if (type.feature && !features[type.feature]) continue
+  for (const [name, type] of Object.entries(attributes)) {
     const desc = type.desc ? ` — ${ type.desc }` : ''
-    lines.push(`  - ${ name } (${ type.type })${ desc }`)
+    lines.push(`- ${ name } (${ type.type })${ desc }`)
   }
   return lines.join('\n')
 }

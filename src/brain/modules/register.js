@@ -35,13 +35,16 @@ function findDesktopConfig () {
 }
 
 function getMcpEntry (config) {
+  const portArgs = config.system.apiPort !== config.const.api.port ? ['--port', String(config.system.apiPort)] : []
   if (config.system.resourcesPath) {
     const ext = process.platform === 'win32' ? '.exe' : ''
-    return { command: join(config.system.resourcesPath, `brain-mcp${ ext }`) }
+    const entry = { command: join(config.system.resourcesPath, `brain-mcp${ ext }`) }
+    if (portArgs.length) entry.args = portArgs
+    return entry
   }
   return {
     command: 'node',
-    args: [join(config.system.brainDir, '..', 'mcp', 'mcp-server.js')],
+    args: [join(config.system.brainDir, '..', 'mcp', 'mcp-server.js'), ...portArgs],
   }
 }
 

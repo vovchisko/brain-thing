@@ -2,8 +2,10 @@ import { join }                                                                 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, watch, writeFileSync } from 'fs'
 import crypto                                                                    from 'node:crypto'
 import Signal                                                                    from 'a-signal'
-import { FIELD }                                                                 from './lib/field-types.js'
-import { APP_NAME, TOOLS }                                                       from '../shared/constants.js'
+import { ATTRIBUTE }                                                             from './lib/attribute-types.js'
+import { APP_NAME }                                                              from '../shared/constants.js'
+import { TOOLS }                                                                 from '../shared/specs.js'
+import { ATTRIBUTE_TYPE }                                                        from '../shared/attribute-types.js'
 import { createBus }                                                             from './lib/bus.js'
 import { deepClone, deepFreeze }                                                 from './lib/utils.js'
 
@@ -13,15 +15,20 @@ const bus = createBus('config', { system: true })
 
 const BRAIN_DIR = '.brain-thing'
 
-const CORE_FIELD_NAMES = new Set(['project', 'tags', 'created', 'modified', 'summary'])
-const TYPE_MAP = { string: FIELD.STRING, date: FIELD.DATE, number: FIELD.NUMBER, list: FIELD.LIST }
+const CORE_ATTRIBUTE_NAMES = new Set(['project', 'tags', 'created', 'modified', 'summary'])
+const TYPE_MAP = {
+  [ATTRIBUTE_TYPE.STRING]: ATTRIBUTE.STRING,
+  [ATTRIBUTE_TYPE.DATE]:   ATTRIBUTE.DATE,
+  [ATTRIBUTE_TYPE.NUMBER]: ATTRIBUTE.NUMBER,
+  [ATTRIBUTE_TYPE.LIST]:   ATTRIBUTE.LIST,
+}
 
 /** Keys that lived in app config before v4 migration but belong to vault settings */
-const VAULT_MIGRATION_KEYS = ['fields', 'ignore', 'organize', 'features', 'guidelineName']
+const VAULT_MIGRATION_KEYS = ['attributes', 'ignore', 'organize', 'features', 'guidelineName']
 
 /** Allowlists for public set() API */
-const SYSTEM_KEYS = new Set(['v', 'vaultPath', 'startMinimized', 'verboseConsole', 'windowBounds', 'name'])
-const VAULT_KEYS  = new Set(['guidelineName', 'features', 'fields', 'ignore', 'organize', 'narrate'])
+const SYSTEM_KEYS = new Set(['v', 'vaultPath', 'startMinimized', 'verboseConsole', 'windowBounds', 'name', 'apiPort'])
+const VAULT_KEYS  = new Set(['guidelineName', 'features', 'attributes', 'ignore', 'organize', 'narrate', 'tools'])
 
 /** Hardcoded values — no UI, no external override */
 export const CONSTANTS = deepFreeze({
@@ -42,6 +49,7 @@ const SYSTEM_DEFAULTS = {
   // Kept in system state (not constants) — UI for rename is planned, per-install value.
   name: APP_NAME,
   windowBounds: null,
+  apiPort: CONSTANTS.api.port,
 }
 
 const VAULT_DEFAULTS = {
@@ -60,7 +68,7 @@ const VAULT_DEFAULTS = {
         rules: [
           { tag: 'mp/doc', folder: 'Docs' },
           { tag: 'mp/task', folder: 'Tasks' },
-          { field: 'status', value: 'done', folder: 'Archive' },
+          { attribute: 'status', value: 'done', folder: 'Archive' },
         ],
       },
     },
@@ -71,17 +79,19 @@ const VAULT_DEFAULTS = {
   narrate: {
     rules: [],
   },
-  fields: [
-    { name: 'project',  type: 'string', desc: 'Project grouping',                       core: true },
-    { name: 'tags',     type: 'list',   desc: 'Hierarchical categorization',            core: true },
-    { name: 'created',  type: 'date',   desc: 'Auto-set on creation',                   core: true },
-    { name: 'modified', type: 'date',   desc: 'Auto-updated on every write',            core: true },
-    { name: 'summary',  type: 'string', desc: 'Brief description for semantic indexing', core: true },
-    { name: 'aliases',  type: 'list',   desc: 'Alternative names' },
-    { name: 'status',   type: 'string', desc: 'Free-form status' },
-    { name: 'priority', type: 'number', desc: 'Priority level' },
-    { name: 'due',      type: 'date',   desc: 'Deadline' },
-    { name: 'state',    type: 'string', desc: 'Document maturity' },
+  // Per-tool MCP enable/disable. migrateVaultConfig materializes this — every tool present, default true.
+  tools: {},
+  attributes: [
+    { name: 'project',  type: ATTRIBUTE_TYPE.STRING, desc: 'Project grouping',                       core: true },
+    { name: 'tags',     type: ATTRIBUTE_TYPE.LIST,   desc: 'Hierarchical categorization',            core: true },
+    { name: 'created',  type: ATTRIBUTE_TYPE.DATE,   desc: 'Auto-set on creation',                   core: true },
+    { name: 'modified', type: ATTRIBUTE_TYPE.DATE,   desc: 'Auto-updated on every write',            core: true },
+    { name: 'summary',  type: ATTRIBUTE_TYPE.STRING, desc: 'Brief description for semantic indexing', core: true },
+    { name: 'aliases',  type: ATTRIBUTE_TYPE.LIST,   desc: 'Alternative names' },
+    { name: 'status',   type: ATTRIBUTE_TYPE.STRING, desc: 'Free-form status' },
+    { name: 'priority', type: ATTRIBUTE_TYPE.NUMBER, desc: 'Priority level' },
+    { name: 'due',      type: ATTRIBUTE_TYPE.DATE,   desc: 'Deadline' },
+    { name: 'state',    type: ATTRIBUTE_TYPE.STRING, desc: 'Document maturity' },
   ],
 }
 
@@ -93,6 +103,7 @@ const systemState = {
   verboseConsole: false,
   name: APP_NAME,
   windowBounds: null,
+  apiPort: CONSTANTS.api.port,
   dataDir: null,
   resourcesPath: null,
   brainDir: null,
@@ -105,7 +116,8 @@ const vaultState = {
   ignore: deepClone(VAULT_DEFAULTS.ignore),
   organize: deepClone(VAULT_DEFAULTS.organize),
   narrate: deepClone(VAULT_DEFAULTS.narrate),
-  fields: buildFields(VAULT_DEFAULTS.fields),
+  tools: deepClone(VAULT_DEFAULTS.tools),
+  attributes: buildAttributes(VAULT_DEFAULTS.attributes),
   vectorCacheDir: null,
 }
 
@@ -151,21 +163,19 @@ function ensureBrainDir (vaultDir) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 
-function buildFields (arr = []) {
-  const fields = {
-    project: FIELD.STRING.describe('Project grouping'),
-    tags: FIELD.LIST.describe('Hierarchical categorization'),
-    created: FIELD.DATE.describe('Auto-set on creation'),
-    modified: FIELD.DATE.describe('Auto-updated on every write'),
-    summary: FIELD.STRING.describe('Brief description for semantic indexing'),
+function buildAttributes (arr = []) {
+  const attributes = {
+    project: ATTRIBUTE.STRING.describe('Project grouping'),
+    tags: ATTRIBUTE.LIST.describe('Hierarchical categorization'),
+    created: ATTRIBUTE.DATE.describe('Auto-set on creation'),
+    modified: ATTRIBUTE.DATE.describe('Auto-updated on every write'),
+    summary: ATTRIBUTE.STRING.describe('Brief description for semantic indexing'),
   }
   for (const def of arr) {
-    const base = TYPE_MAP[def.type] || FIELD.STRING
-    const field = base.describe(def.desc || '')
-    if (def.feature) field.feature = def.feature
-    fields[def.name] = field
+    const base = TYPE_MAP[def.type] || ATTRIBUTE.STRING
+    attributes[def.name] = base.describe(def.desc || '')
   }
-  return fields
+  return attributes
 }
 
 // --- Migration (system config only) ---
@@ -231,6 +241,8 @@ function migrateSystemConfig (stored) {
         try {
           ensureBrainDir(stored.vaultPath)
           const vaultData = { ...VAULT_DEFAULTS }
+          // legacy vault keys may still use `fields` — map to `attributes`
+          if ('fields' in stored && !('attributes' in stored)) stored.attributes = stored.fields
           for (const key of VAULT_MIGRATION_KEYS) {
             if (key in stored) vaultData[key] = stored[key]
           }
@@ -240,7 +252,7 @@ function migrateSystemConfig (stored) {
         }
       }
     }
-    for (const key of VAULT_MIGRATION_KEYS) {
+    for (const key of [...VAULT_MIGRATION_KEYS, 'fields']) {
       if (key in stored) { delete stored[key]; changed = true }
     }
     if ('_settingsMigrated' in stored) {
@@ -280,6 +292,7 @@ function applySystemConfig () {
   systemState.verboseConsole = merged.verboseConsole
   systemState.name = merged.name
   systemState.windowBounds = merged.windowBounds || null
+  systemState.apiPort = Number.isFinite(merged.apiPort) ? merged.apiPort : CONSTANTS.api.port
 
   if (systemState.dataDir) {
     systemState.modelCacheDir = join(systemState.dataDir, 'models')
@@ -288,11 +301,45 @@ function applySystemConfig () {
 
 function migrateVaultConfig (stored) {
   let changed = false
-  // Drop legacy `narrate` field def from user fields config (field replaced by narrate.rules)
-  if (Array.isArray(stored.fields)) {
-    const before = stored.fields.length
-    stored.fields = stored.fields.filter(f => f.name !== 'narrate')
-    if (stored.fields.length !== before) changed = true
+  // Legacy: rename `fields` → `attributes`
+  if (Array.isArray(stored.fields) && !Array.isArray(stored.attributes)) {
+    stored.attributes = stored.fields
+    delete stored.fields
+    changed = true
+  }
+  // Drop legacy `narrate` attribute def from user config (attribute replaced by narrate.rules)
+  if (Array.isArray(stored.attributes)) {
+    const before = stored.attributes.length
+    stored.attributes = stored.attributes.filter(a => a.name !== 'narrate')
+    if (stored.attributes.length !== before) changed = true
+  }
+  // Legacy: rename rule `field` → `attribute` in organize rules
+  function renameRuleField (rule) {
+    if (rule && 'field' in rule && !('attribute' in rule)) {
+      rule.attribute = rule.field
+      delete rule.field
+      return true
+    }
+    return false
+  }
+  if (stored.organize) {
+    for (const rule of stored.organize.rules || []) {
+      if (renameRuleField(rule)) changed = true
+    }
+    for (const proj of Object.values(stored.organize.projects || {})) {
+      for (const rule of proj.rules || []) {
+        if (renameRuleField(rule)) changed = true
+      }
+    }
+  }
+  // Normalize tool toggles: materialize an entry for every current tool (default enabled),
+  // drop keys for tools that no longer exist (renamed/removed).
+  const prevTools = stored.tools && typeof stored.tools === 'object' ? stored.tools : {}
+  const tools = {}
+  for (const name of Object.values(TOOLS)) tools[name] = prevTools[name] !== false
+  if (JSON.stringify(tools) !== JSON.stringify(stored.tools)) {
+    stored.tools = tools
+    changed = true
   }
   if (changed && vaultFilePath) saveJSON(vaultFilePath, stored)
   return stored
@@ -306,7 +353,8 @@ function applyVaultConfig () {
     vaultState.ignore = deepClone(VAULT_DEFAULTS.ignore)
     vaultState.organize = deepClone(VAULT_DEFAULTS.organize)
     vaultState.narrate = deepClone(VAULT_DEFAULTS.narrate)
-    vaultState.fields = buildFields(VAULT_DEFAULTS.fields)
+    vaultState.tools = deepClone(VAULT_DEFAULTS.tools)
+    vaultState.attributes = buildAttributes(VAULT_DEFAULTS.attributes)
     vaultState.vectorCacheDir = null
     lastSettingsHash = null
     return
@@ -319,8 +367,8 @@ function applyVaultConfig () {
   const stored = migrateVaultConfig(loadVaultFile())
   const merged = { ...VAULT_DEFAULTS, ...stored }
 
-  if (Array.isArray(merged.fields)) {
-    for (const f of merged.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
+  if (Array.isArray(merged.attributes)) {
+    for (const a of merged.attributes) a.core = CORE_ATTRIBUTE_NAMES.has(a.name) || false
   }
 
   vaultState.guidelineName = merged.guidelineName
@@ -328,7 +376,8 @@ function applyVaultConfig () {
   vaultState.ignore = deepClone(merged.ignore)
   vaultState.organize = deepClone(merged.organize)
   vaultState.narrate = deepClone(merged.narrate)
-  vaultState.fields = buildFields(merged.fields)
+  vaultState.tools = deepClone(merged.tools)
+  vaultState.attributes = buildAttributes(merged.attributes)
   vaultState.vectorCacheDir = join(systemState.vaultPath, BRAIN_DIR, 'vector-cache')
 
   try { lastSettingsHash = hashStr(readFileSync(vaultFilePath, 'utf-8')) } catch { /* ignore */ }
@@ -414,8 +463,8 @@ function systemReset () {
 function vaultGet () {
   const stored = loadVaultFile()
   const merged = { ...VAULT_DEFAULTS, ...stored }
-  if (Array.isArray(merged.fields)) {
-    for (const f of merged.fields) f.core = CORE_FIELD_NAMES.has(f.name) || false
+  if (Array.isArray(merged.attributes)) {
+    for (const a of merged.attributes) a.core = CORE_ATTRIBUTE_NAMES.has(a.name) || false
   }
   return merged
 }

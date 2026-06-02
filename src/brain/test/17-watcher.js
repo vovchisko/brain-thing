@@ -1,18 +1,19 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import { TOOLS } from '../../shared/specs.js'
 
 export default async function ({ post, assert, sleep, VAULT }) {
   // Read before write
-  await post('get', { name: 'Alpha' })
-  await post('update', { name: 'Alpha', fields: [{ property: 'summary', value: 'AI updated' }] })
-  const { data: before } = await post('get', { name: 'Alpha' })
+  await post(TOOLS.GET, { name: 'Alpha' })
+  await post(TOOLS.EDIT, { name: 'Alpha', attributes: { summary: 'AI updated' } })
+  const { data: before } = await post(TOOLS.GET, { name: 'Alpha' })
   assert(before.text.includes('AI updated'), 'API update applied')
 
   // Wait for watcher debounce
   await sleep(1000)
 
   // Entry unchanged after watcher — content_hash skip worked
-  const { data: after } = await post('get', { name: 'Alpha' })
+  const { data: after } = await post(TOOLS.GET, { name: 'Alpha' })
   assert(after.text.includes('AI updated'), 'still correct after watcher')
 
   // User edit on disk → watcher picks it up
@@ -23,6 +24,6 @@ export default async function ({ post, assert, sleep, VAULT }) {
 
   await sleep(1000)
 
-  const { data: userEdit } = await post('get', { name: 'Alpha' })
+  const { data: userEdit } = await post(TOOLS.GET, { name: 'Alpha' })
   assert(userEdit.text.includes('Human edited'), 'watcher picked up user edit')
 }

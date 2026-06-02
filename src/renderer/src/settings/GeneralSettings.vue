@@ -40,11 +40,6 @@ async function toggleVerbose () {
   await settings.saveSystem({ verboseConsole: v })
   state.verboseConsole = v
 }
-
-async function toggleTts () {
-  const features = { ...(settings.vault.value?.features || {}), tts: !settings.vault.value?.features?.tts }
-  await settings.saveVault({ features })
-}
 </script>
 
 <template>
@@ -94,14 +89,20 @@ async function toggleTts () {
         {{ settings.system.value.verboseConsole ? 'ON' : 'OFF' }}
       </button>
     </div>
-    <div v-if="settings.vault.value" class="general_row">
+    <hr />
+    <div class="general_row">
       <div>
-        <div class="general_row_name">TTS Narration</div>
-        <div class="g-hint">Watch entries and send matching ones to a local TTS server. Configure rules in the Narrate tab.</div>
+        <div class="general_row_name">API port</div>
+        <div class="g-hint">Default 43000. Restart app and re-register MCP after change.</div>
       </div>
-      <button class="g-btn general_row_toggle" :class="{ _on: settings.vault.value.features?.tts }" @click="toggleTts">
-        {{ settings.vault.value.features?.tts ? 'ON' : 'OFF' }}
-      </button>
+      <input
+        type="number"
+        class="g-input"
+        min="1"
+        max="65535"
+        :value="settings.system.value.apiPort"
+        @change="e => settings.saveSystem({ apiPort: e.target.valueAsNumber })"
+      />
     </div>
   </template>
 </template>
@@ -114,14 +115,14 @@ async function toggleTts () {
   gap: var(--gap-md);
 
   &_name {
-    font-size: var(--font-sm);
+    font-size: var(--font-ui);
     color: var(--text);
     margin-bottom: var(--gap-xs);
   }
 
   &_toggle {
     padding: 4px 14px;
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     font-weight: 600;
     min-width: 48px;
     flex-shrink: 0;
@@ -134,7 +135,7 @@ async function toggleTts () {
   }
 
   &_error {
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     color: var(--negative);
     margin-top: var(--gap-xs);
   }
@@ -144,7 +145,7 @@ async function toggleTts () {
     padding: 1px 6px;
     margin-right: var(--gap-xs);
     border-radius: var(--radius-sm);
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     background: var(--bg-btn);
     color: var(--text-dim);
 

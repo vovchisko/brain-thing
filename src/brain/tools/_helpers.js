@@ -1,9 +1,12 @@
 import matter                     from 'gray-matter'
 import { store }                   from '../modules/store.js'
 import { cfg }                     from '../config.js'
-import { orderKeys, countWords }   from '../lib/utils.js'
+import { orderKeys, countWords, extractWikilinks, isEmptyEntry } from '../lib/utils.js'
 
-const HIDDEN_FIELDS = new Set([ 'source_file', 'content_hash', 'content' ])
+// Never surface in frontmatter: storage internals (source_file/content_hash/content),
+// the identity (`name` — it lifts to the `=== [[name]] ===` line, not an attribute),
+// and computed fields (`wordCount` — not a real frontmatter key).
+const HIDDEN_ATTRIBUTES = new Set([ 'source_file', 'content_hash', 'content', 'name', 'wordCount' ])
 const LOG_SKIP = new Set([ 'name', 'source_file', 'content_hash', 'content', 'created', 'modified', 'summary', 'aliases' ])
 
 /**
@@ -25,6 +28,11 @@ export function checkStale (entry) {
   return null
 }
 
+/** Drop all seen-hashes. Called from server.hotSwap() — old vault's hashes don't apply to the new vault. */
+export function clearSeenHashes () {
+  seenHashes.clear()
+}
+
 /** Flatten whitespace + truncate for single-line preview. Returns '' if empty. */
 export function previewContent (text, maxLen = 200) {
   if (!text) return ''
@@ -33,7 +41,7 @@ export function previewContent (text, maxLen = 200) {
   return flat.length > maxLen ? flat.slice(0, maxLen) + '…' : flat
 }
 
-function wordsOf (entry) {
+export function wordsOf (entry) {
   return entry.wordCount ?? countWords(entry.content)
 }
 
@@ -65,33 +73,22 @@ export function formatResultList (items, { showScore = false, hideProject = fals
   return blocks.join('\n\n')
 }
 
-/** Compact single-line for backlinks and similar dense lists. */
-export function formatEntryInline (entry, { hideProject = false } = {}) {
-  const parts = [`[[${ entry.name }]]`]
-  const meta = []
-  if (!hideProject && entry.project) meta.push(entry.project)
-  if (entry.tags?.length) meta.push(entry.tags.join(', '))
-  if (meta.length) parts.push(`(${ meta.join(' · ') })`)
-  parts.push(`— ${ wordsOf(entry) } words`)
-  return parts.join(' ')
-}
-
 /**
- * Check typed fields for parse failures. Returns array of warning strings.
- * String fields never warn (they accept anything). Only configured typed fields.
+ * Check typed attributes for parse failures. Returns array of warning strings.
+ * String attributes never warn (they accept anything). Only configured typed attributes.
  */
-export function typeWarnings (props) {
-  const fieldsMap = cfg.state.vault.fields || {}
+export function typeWarnings (attrs) {
+  const attrMap = cfg.state.vault.attributes || {}
   const warnings = []
-  for (const [key, value] of Object.entries(props)) {
+  for (const [key, value] of Object.entries(attrs)) {
     if (value == null) continue
-    const type = fieldsMap[key]
+    const type = attrMap[key]
     if (!type || type.type === 'string') continue
     const parsed = type.parse(value)
     const failed = (type.type === 'date' && !(parsed instanceof Date))
                 || (type.type === 'number' && typeof parsed !== 'number')
     if (failed) {
-      warnings.push(`field "${ key }" (${ type.type }): value ${ JSON.stringify(value) } did not parse; stored as-is`)
+      warnings.push(`attribute "${ key }" (${ type.type }): value ${ JSON.stringify(value) } did not parse; stored as-is`)
     }
   }
   return warnings
@@ -111,19 +108,88 @@ export function entryProps (entry) {
 }
 
 /**
- * Format entry as YAML frontmatter + markdown content.
- * Same format as stored on disk in Obsidian.
+ * Build the `---`-fenced YAML frontmatter block for a doc (configured key order,
+ * summary last). Hidden/null/empty-array fields are dropped. Returns '' when no
+ * fields survive — a doc with no attributes renders header + body, no fence.
  */
-export function formatEntry (entry) {
-  const frontmatter = {}
+function buildFrontmatter (entry) {
+  const data = {}
   for (const [ key, value ] of Object.entries(entry)) {
-    if (HIDDEN_FIELDS.has(key)) continue
+    if (HIDDEN_ATTRIBUTES.has(key)) continue
     if (value == null) continue
     if (Array.isArray(value) && value.length === 0) continue
-    frontmatter[key] = value
+    data[key] = value
   }
-  const ordered = orderKeys(frontmatter, cfg.state.const.frontmatterHead, cfg.state.const.frontmatterTail)
-  return matter.stringify(entry.content || '', ordered).trim()
+  const ordered = orderKeys(data, cfg.state.const.frontmatterHead, cfg.state.const.frontmatterTail)
+  if (!Object.keys(ordered).length) return ''
+  return matter.stringify('', ordered).trim()
+}
+
+/**
+ * Collect a doc's link context for the `=== links ===` block.
+ * @returns {{ backlinks: object[], missing: string[], empty: object[] }}
+ */
+export function gatherLinks (entry) {
+  const backlinks = store.findBacklinks(entry.name) || []
+  const missing = []
+  const empty = []
+  for (const linkName of new Set(extractWikilinks(entry.content))) {
+    if (linkName === entry.name) continue
+    const target = store.entries.get(linkName)
+    if (!target) missing.push(linkName)
+    else if (isEmptyEntry(target)) empty.push(target)
+  }
+  return { backlinks, missing, empty }
+}
+
+/**
+ * Render the trailing `=== links ===` block (aligned labels). Returns '' when no
+ * links — the doc then has no links block at all. Backlinks/missing/empty are
+ * separated from the body by their own marker so the AI never edits them as content.
+ */
+export function renderLinks ({ backlinks = [], missing = [], empty = [] } = {}) {
+  const rows = []
+  if (backlinks.length) rows.push([ 'backlinks', backlinks.map(e => `[[${ e.name }]]`) ])
+  if (missing.length)   rows.push([ 'missing',   missing.map(n => `[[${ n }]]`) ])
+  if (empty.length)     rows.push([ 'empty',     empty.map(e => `[[${ e.name }]]`) ])
+  if (!rows.length) return ''
+  const pad = Math.max(...rows.map(([ label ]) => label.length)) + 2   // colon + ≥1 space
+  const lines = rows.map(([ label, items ]) => `${ (label + ':').padEnd(pad) }${ items.join(', ') }`)
+  return `=== links ===\n${ lines.join('\n') }`
+}
+
+/**
+ * Single per-document renderer, shared by `get` and `long_read` (long_read = get
+ * repeated). Identity lives on the `=== [[name]] ===` line — never a `name:` key
+ * or a `# Name` heading (both read as attribute/body to the model).
+ *   full     → header + fenced frontmatter + body + (links if provided)
+ *   focus    → header + body only
+ *   estimate → header + fenced frontmatter + word count (no body)
+ * @param {object} entry
+ * @param {'full'|'focus'|'estimate'} mode
+ * @param {{ links?: object }} [opts]
+ */
+export function renderDoc (entry, mode = 'full', { links } = {}) {
+  const header = `=== [[${ entry.name }]] ===`
+
+  if (mode === 'focus') {
+    return `${ header }\n\n${ entry.content || '' }`.trimEnd()
+  }
+
+  const fm = buildFrontmatter(entry)
+
+  if (mode === 'estimate') {
+    return [ header, fm, `${ wordsOf(entry) } words` ].filter(Boolean).join('\n')
+  }
+
+  // full
+  const parts = [ header ]
+  if (fm) parts.push(fm)
+  parts.push('', entry.content || '')          // blank line, then body
+  let out = parts.join('\n').trimEnd()
+  const linkBlock = links ? renderLinks(links) : ''
+  if (linkBlock) out += `\n\n${ linkBlock }`
+  return out
 }
 
 /** Find entry by name (case-insensitive). */

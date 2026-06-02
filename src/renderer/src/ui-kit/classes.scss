@@ -1,0 +1,111 @@
+// Global cross-cutting classes used app-wide (Settings UI, views). Base vars only.
+
+.screen {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  padding: var(--gap-md);
+  overflow: hidden;
+  gap: var(--gap-md);
+}
+
+.g-input {
+  padding: var(--input-py) var(--input-px);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: var(--font-ui);
+  font-family: var(--font-mono);
+  outline: none;
+
+  &:focus {
+    box-shadow: 0 0 0 1px var(--border);
+  }
+
+  &::placeholder {
+    color: var(--text-dim);
+  }
+
+  &:disabled {
+    color: var(--text-dim);
+    background: var(--bg);
+    cursor: default;
+  }
+}
+
+select.g-input {
+  color: var(--text);
+  appearance: none;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.g-btn {
+  padding: var(--btn-py) var(--btn-px);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-btn);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--font-ui);
+  white-space: nowrap;
+  outline: none;
+
+  &:focus-visible {
+    box-shadow: 0 0 0 1px var(--border);
+  }
+
+  &:hover {
+    background: var(--bg-btn-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &._primary {
+    background: var(--accent);
+
+    &:hover {
+      background: var(--accent-hover);
+    }
+  }
+
+  &._warn {
+    background: var(--caution);
+  }
+
+  &._danger {
+    background: var(--negative);
+  }
+}
+
+.g-label {
+  display: block;
+  font-size: var(--font-ui);
+  color: var(--text-soft);
+  margin-bottom: var(--gap-sm);
+}
+
+.g-hint {
+  font-size: var(--font-label);
+  color: var(--text-dim);
+  margin-top: var(--gap-xs);
+}
+
+.g-saved {
+  font-size: var(--font-label);
+  color: var(--positive);
+  margin-top: var(--gap-xs);
+}
+
+.g-error {
+  font-size: var(--font-label);
+  color: var(--negative);
+  margin-top: var(--gap-xs);
+}

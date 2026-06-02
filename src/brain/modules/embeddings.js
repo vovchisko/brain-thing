@@ -62,7 +62,7 @@ async function init (config) {
   accessedHashes.clear()
 }
 
-const MAX_CHARS = 8000
+const MAX_CHARS = 4000
 
 async function embed (text, label) {
   if (!embedder) throw new Error('Embedder not initialized')

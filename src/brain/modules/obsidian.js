@@ -16,16 +16,16 @@ function init (config) {
   _config = config
 }
 
-function coerceFields (data) {
-  for (const [ name, type ] of Object.entries(_config.vault.fields)) {
+function coerceAttributes (data) {
+  for (const [ name, type ] of Object.entries(_config.vault.attributes)) {
     if (name in data) data[name] = type.parse(data[name])
   }
   return data
 }
 
-function serializeFields (data) {
+function serializeAttributes (data) {
   const out = { ...data }
-  for (const [ name, type ] of Object.entries(_config.vault.fields)) {
+  for (const [ name, type ] of Object.entries(_config.vault.attributes)) {
     if (name in out) out[name] = type.serialize(out[name])
   }
   return out
@@ -83,7 +83,7 @@ function parseFrontmatter (text) {
 }
 
 function serializeFrontmatter (frontmatter, content = '') {
-  const serialized = serializeFields(frontmatter)
+  const serialized = serializeAttributes(frontmatter)
   const ordered = orderKeys(serialized, _config.const.frontmatterHead, _config.const.frontmatterTail)
   return matter.stringify(content, ordered)
 }
@@ -162,7 +162,7 @@ async function importFile (filePath) {
     modified,
   }
 
-  coerceFields(entry)
+  coerceAttributes(entry)
 
   deleteEntriesForFile(filePath, fileName)
   const entryInstance = store.entries.add(entry)
@@ -232,7 +232,9 @@ async function updateFile (entry, content, updatedProps = {}) {
   const { frontmatter } = parsed
 
   for (const [ key, value ] of Object.entries(updatedProps)) {
-    if (value !== null && value !== undefined) {
+    if (value === null) {
+      delete frontmatter[key]
+    } else if (value !== undefined) {
       frontmatter[key] = value
     }
   }

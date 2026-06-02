@@ -1,7 +1,9 @@
 import { dirname }                 from 'path'
 import { fileURLToPath }           from 'url'
+import crypto                      from 'node:crypto'
 import Fastify                     from 'fastify'
-import { cfg, TOOLS }              from './config.js'
+import { cfg }                     from './config.js'
+import { STATUS }                  from '../shared/status.js'
 import { createBus }               from './lib/bus.js'
 import { store }                   from './modules/store.js'
 import { embeddings }              from './modules/embeddings.js'
@@ -10,50 +12,57 @@ import { watcher }                 from './modules/watcher.js'
 import { registration }            from './modules/register.js'
 import { diagnostics }             from './modules/diagnostics.js'
 import { tts }                     from './modules/tts.js'
+import { dataset }                 from './dataset/index.js'
 import { wrap }                    from './lib/api.js'
-import { describeFields }          from './lib/utils.js'
+import { clearSeenHashes }         from './tools/_helpers.js'
+import { SPECS }                   from './specs.js'
 
-import * as toolGet           from './tools/get.js'
-import * as toolWhatIs        from './tools/what_is.js'
-import * as toolGrep          from './tools/grep.js'
-import * as toolLookAround    from './tools/look_around.js'
-import * as toolTagsList      from './tools/tags_list.js'
-import * as toolCreate        from './tools/create.js'
-import * as toolUpdate        from './tools/update.js'
-import * as toolReplace       from './tools/replace.js'
-import * as toolInsert        from './tools/insert.js'
-import * as toolDelete        from './tools/delete.js'
-import * as toolRename        from './tools/rename.js'
-import * as toolFields        from './tools/fields.js'
-import * as toolSearch        from './tools/search.js'
-import * as toolDiagnostic    from './tools/diagnostic.js'
-import * as toolProjectConfig from './tools/project_config.js'
-import * as toolLongRead      from './tools/long_read.js'
+import { handle as get }            from './tools/get.js'
+import { handle as what_is }        from './tools/what_is.js'
+import { handle as grep }           from './tools/grep.js'
+import { handle as look_around }    from './tools/look_around.js'
+import { handle as tags_list }      from './tools/tags_list.js'
+import { handle as create }         from './tools/create.js'
+import { handle as edit }           from './tools/edit.js'
+import { handle as del }            from './tools/delete.js'
+import { handle as rename }         from './tools/rename.js'
+import { handle as attributes }     from './tools/attributes.js'
+import { handle as search }         from './tools/search.js'
+import { handle as diagnostic }     from './tools/diagnostic.js'
+import { handle as project_config } from './tools/project_config.js'
+import { handle as long_read }      from './tools/long_read.js'
+import { handle as db_schema }        from './tools/db_schema.js'
+import { handle as db_schema_edit }   from './tools/db_schema_edit.js'
+import { handle as db_query }         from './tools/db_query.js'
+import { handle as db_get }           from './tools/db_get.js'
+import { handle as db_create }        from './tools/db_create.js'
+import { handle as db_create_many }   from './tools/db_create_many.js'
+import { handle as db_update }        from './tools/db_update.js'
+import { handle as db_delete }        from './tools/db_delete.js'
+import { handle as db_delete_many }   from './tools/db_delete_many.js'
 
-const ALL_TOOLS = [
-  toolGet, toolWhatIs, toolGrep, toolLookAround, toolTagsList,
-  toolCreate, toolUpdate, toolReplace, toolInsert, toolDelete, toolRename,
-  toolFields, toolSearch, toolDiagnostic, toolProjectConfig, toolLongRead,
-]
+const HANDLERS = {
+  get, what_is, grep, look_around, tags_list,
+  create, edit, delete: del, rename,
+  attributes, search, diagnostic, project_config, long_read,
+  db_schema, db_schema_edit, db_query, db_get, db_create, db_create_many, db_update, db_delete, db_delete_many,
+}
+
+const TOOL_REGISTRY = SPECS.map(spec => {
+  const handle = HANDLERS[spec.name]
+  if (!handle) throw new Error(`Missing handler for tool "${ spec.name }" — add it in server.js HANDLERS map`)
+  return { spec, handle }
+})
 
 const bus = createBus('brain')
 
-function isEnabled (t, config) {
-  return !t.feature || config.vault.features[t.feature]
+const SKIP_ATTRIBUTES = new Set(['name', 'content', 'source_file', 'content_hash'])
+
+/** Short signature of the per-tool enable/disable map — lets the MCP proxy detect changes. */
+function toolsRev () {
+  return crypto.createHash('sha1').update(JSON.stringify(cfg.state.vault.tools || {})).digest('hex').slice(0, 12)
 }
 
-function augmentDescription (t, config) {
-  if (!t.injectFields) return t.tool
-  const block = describeFields(config, t.injectFields)
-  if (!block) return t.tool
-  const header = t.injectFields === 'search' ? 'Searchable fields' : 'Known fields'
-  const tail = `\n\n${ header } (configure in Settings → Fields):\n${ block }`
-  return { ...t.tool, description: t.tool.description + tail }
-}
-
-const SKIP_FIELDS = new Set(['name', 'content', 'source_file', 'content_hash'])
-
-let _fastify = null
 let _changeCallback = null
 
 function pushEntries () {
@@ -69,17 +78,17 @@ function pushIssues () {
   if (server.onIssues) server.onIssues({ summary, links })
 }
 
-function pushFields () {
+function pushAttributes () {
   const counts = {}
   for (const entry of store.entries) {
     for (const [key, value] of Object.entries(entry)) {
-      if (SKIP_FIELDS.has(key)) continue
+      if (SKIP_ATTRIBUTES.has(key)) continue
       if (value == null) continue
       if (Array.isArray(value) && value.length === 0) continue
       counts[key] = (counts[key] || 0) + 1
     }
   }
-  if (server.onFields) server.onFields(counts)
+  if (server.onAttributes) server.onAttributes(counts)
 }
 
 function pushProjects () {
@@ -129,33 +138,29 @@ async function start (dataDir, opts = {}) {
   obsidian.init(config)
 
   const fastify = Fastify({ logger: false })
-  _fastify = fastify
 
-  fastify.post(`/${ toolGet.tool.name }`,           wrap(toolGet.tool.name,           toolGet.handle))
-  fastify.post(`/${ toolWhatIs.tool.name }`,        wrap(toolWhatIs.tool.name,        toolWhatIs.handle))
-  fastify.post(`/${ toolGrep.tool.name }`,          wrap(toolGrep.tool.name,          toolGrep.handle))
-  fastify.post(`/${ toolLookAround.tool.name }`,    wrap(toolLookAround.tool.name,    toolLookAround.handle))
-  fastify.post(`/${ toolTagsList.tool.name }`,      wrap(toolTagsList.tool.name,      toolTagsList.handle))
-  fastify.post(`/${ toolCreate.tool.name }`,        wrap(toolCreate.tool.name,        toolCreate.handle))
-  fastify.post(`/${ toolUpdate.tool.name }`,        wrap(toolUpdate.tool.name,        toolUpdate.handle))
-  fastify.post(`/${ toolReplace.tool.name }`,       wrap(toolReplace.tool.name,       toolReplace.handle))
-  fastify.post(`/${ toolInsert.tool.name }`,        wrap(toolInsert.tool.name,        toolInsert.handle))
-  fastify.post(`/${ toolDelete.tool.name }`,        wrap(toolDelete.tool.name,        toolDelete.handle))
-  fastify.post(`/${ toolRename.tool.name }`,        wrap(toolRename.tool.name,        toolRename.handle))
-  fastify.post(`/${ toolFields.tool.name }`,        wrap(toolFields.tool.name,        toolFields.handle))
-  fastify.post(`/${ toolSearch.tool.name }`,        wrap(toolSearch.tool.name,        toolSearch.handle))
-  fastify.post(`/${ toolDiagnostic.tool.name }`,    wrap(toolDiagnostic.tool.name,    toolDiagnostic.handle))
-  fastify.post(`/${ toolProjectConfig.tool.name }`, wrap(toolProjectConfig.tool.name, toolProjectConfig.handle))
-  fastify.post(`/${ toolLongRead.tool.name }`,      wrap(toolLongRead.tool.name,      toolLongRead.handle))
+  // Tag every response with the current tool-toggle signature so the MCP proxy can
+  // detect changes and fire tools/list_changed.
+  fastify.addHook('onSend', (req, reply, payload, done) => {
+    reply.header('X-Tools-Rev', toolsRev())
+    done(null, payload)
+  })
+
+  for (const t of TOOL_REGISTRY) {
+    const name = t.spec.name
+    fastify.post(`/${ name }`, wrap(name, (body) => {
+      if (config.vault.tools?.[name] === false) {
+        return { text: `Tool "${ name }" is disabled. Enable it in Settings → Tools.` }
+      }
+      return t.handle(body)
+    }))
+  }
 
   fastify.get('/status', async () => ({ name: config.system.name, entries: store.entries.size, vault: config.system.vaultPath }))
-  fastify.get('/tools', async () => {
-    const tools = ALL_TOOLS
-      .filter(t => isEnabled(t, config))
-      .map(t => augmentDescription(t, config))
-    bus.info(`MCP requested tools (${ tools.length })`)
-    return tools
-  })
+  fastify.get('/tools', async () => TOOL_REGISTRY.map(t => ({
+    ...t.spec,
+    enabled: config.vault.tools?.[t.spec.name] !== false,
+  })))
 
   _changeCallback = async (filePaths) => {
     await obsidian.syncFiles(filePaths)
@@ -163,59 +168,68 @@ async function start (dataDir, opts = {}) {
     tts.onFilesChanged(filePaths)
     pushEntries()
     pushIssues()
-    pushFields()
+    pushAttributes()
     pushProjects()
   }
 
-  status('startup')
-  await registration.register(config)
+  try {
+    status(STATUS.STARTUP)
+    await registration.register(config)
 
-  status('downloading-embedding')
-  embeddings.onProgress = (data) => {
-    if (data.status === 'progress' && data.progress != null) {
-      status('downloading-embedding', { progress: Math.round(data.progress), file: data.file })
+    status(STATUS.DOWNLOADING)
+    embeddings.onProgress = (data) => {
+      if (data.status === 'progress' && data.progress != null) {
+        status(STATUS.DOWNLOADING, { progress: Math.round(data.progress), file: data.file })
+      }
     }
-  }
-  await embeddings.init(config)
-  embeddings.onProgress = null
+    await embeddings.init(config)
+    embeddings.onProgress = null
 
-  status('scanning')
-  startLiveCounter()
-  await obsidian.run()
-  stopLiveCounter()
+    status(STATUS.SCANNING)
+    startLiveCounter()
+    await obsidian.run()
+    stopLiveCounter()
 
-  status('indexing')
-  await store.entries.ensureVectors()
-  await embeddings.cleanup()
+    status(STATUS.INDEXING)
+    await store.entries.ensureVectors()
+    await embeddings.cleanup()
 
-  status('ready')
-  diagnostics.checkAll()
-  watcher.start(config, _changeCallback)
-  tts.init(config)
+    status(STATUS.READY)
+    diagnostics.checkAll()
+    watcher.start(config, _changeCallback)
+    tts.init(config)
+    await dataset.init(config)
 
-  const onConfigChanged = (scope) => () => {
+    const onConfigChanged = (scope) => () => {
+      pushProjects()
+      if (server.onConfigChanged) server.onConfigChanged(scope)
+    }
+    cfg.system.changed.on(onConfigChanged('system'))
+    cfg.vault.changed.on(onConfigChanged('vault'))
+
+    store.ready.emit()
+
+    pushEntries()
+    pushIssues()
+    pushAttributes()
     pushProjects()
-    if (server.onConfigChanged) server.onConfigChanged(scope)
+
+    if (!opts.skipListen) {
+      await fastify.listen({ port: config.system.apiPort, host: config.const.api.host })
+      bus.info('start', `Ready: ${ store.entries.size } entries @ http://${ config.const.api.host }:${ config.system.apiPort }`)
+    } else {
+      await fastify.ready()
+      bus.info('start', `Ready: ${ store.entries.size } entries (listen skipped)`)
+    }
+
+    return fastify
+  } catch (err) {
+    stopLiveCounter()
+    bus.error('start', err.message)
+    status(STATUS.ERROR, { message: err.message })
+    store.ready.emit({ error: err.message })
+    return null
   }
-  cfg.system.changed.on(onConfigChanged('system'))
-  cfg.vault.changed.on(onConfigChanged('vault'))
-
-  store.ready.emit()
-
-  pushEntries()
-  pushIssues()
-  pushFields()
-  pushProjects()
-
-  if (!opts.skipListen) {
-    await fastify.listen({ port: config.const.api.port, host: config.const.api.host })
-    bus.info('start', `Ready: ${ store.entries.size } entries @ http://${ config.const.api.host }:${ config.const.api.port }`)
-  } else {
-    await fastify.ready()
-    bus.info('start', `Ready: ${ store.entries.size } entries (listen skipped)`)
-  }
-
-  return fastify
 }
 
 async function hotSwap () {
@@ -227,30 +241,41 @@ async function hotSwap () {
   store.ready.forget()
   watcher.stop()
   store.entries.clear()
+  clearSeenHashes()
 
-  status('re-indexing')
-  startLiveCounter()
-  await obsidian.run()
-  stopLiveCounter()
+  try {
+    status(STATUS.REINDEXING)
+    startLiveCounter()
+    await obsidian.run()
+    stopLiveCounter()
 
-  status('indexing')
-  await store.entries.ensureVectors()
-  await embeddings.cleanup()
+    status(STATUS.INDEXING)
+    await store.entries.ensureVectors()
+    await embeddings.cleanup()
 
-  status('ready')
-  diagnostics.checkAll()
-  watcher.start(config, _changeCallback)
+    status(STATUS.READY)
+    diagnostics.checkAll()
+    watcher.start(config, _changeCallback)
 
-  store.ready.emit()
+    store.ready.emit()
 
-  pushEntries()
-  pushIssues()
-  pushFields()
-  pushProjects()
+    pushEntries()
+    pushIssues()
+    pushAttributes()
+    pushProjects()
 
-  if (server.onConfigChanged) server.onConfigChanged()
+    await tts.reload()
+    await dataset.init(config)
 
-  bus.info('swap', `Complete: ${ store.entries.size } entries`)
+    if (server.onConfigChanged) server.onConfigChanged()
+
+    bus.info('swap', `Complete: ${ store.entries.size } entries`)
+  } catch (err) {
+    stopLiveCounter()
+    bus.error('swap', err.message)
+    status(STATUS.ERROR, { message: err.message })
+    store.ready.emit({ error: err.message })
+  }
 }
 
 export const server = {
@@ -259,7 +284,7 @@ export const server = {
   onStatus: null,
   onEntries: null,
   onIssues: null,
-  onFields: null,
+  onAttributes: null,
   onProjects: null,
   onLiveCount: null,
   onConfigChanged: null,

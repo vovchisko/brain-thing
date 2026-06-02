@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync, readdirSync, rmSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { server } from './server.js'
+import { ATTRIBUTE_TYPE } from '../shared/attribute-types.js'
 
 const BRAIN_DIR = dirname(fileURLToPath(import.meta.url))
 const TEST_DIR = join(BRAIN_DIR, '_test-env')
@@ -49,7 +50,7 @@ function seedVault () {
           folder: 'TestProject',
           rules: [
             { tag: 'test/docs', folder: 'Docs' },
-            { field: 'status', value: 'done', folder: 'Archive' },
+            { attribute: 'status', value: 'done', folder: 'Archive' },
           ],
         },
       },
@@ -57,12 +58,12 @@ function seedVault () {
         { tag: 'logs', folder: 'Logs' },
       ],
     },
-    fields: [
-      { name: 'project', type: 'string', desc: 'Project', core: true },
-      { name: 'tags', type: 'list', desc: 'Tags', core: true },
-      { name: 'created', type: 'date', desc: 'Created', core: true },
-      { name: 'modified', type: 'date', desc: 'Modified', core: true },
-      { name: 'summary', type: 'string', desc: 'Summary', core: true },
+    attributes: [
+      { name: 'project', type: ATTRIBUTE_TYPE.STRING, desc: 'Project', core: true },
+      { name: 'tags', type: ATTRIBUTE_TYPE.LIST, desc: 'Tags', core: true },
+      { name: 'created', type: ATTRIBUTE_TYPE.DATE, desc: 'Created', core: true },
+      { name: 'modified', type: ATTRIBUTE_TYPE.DATE, desc: 'Modified', core: true },
+      { name: 'summary', type: ATTRIBUTE_TYPE.STRING, desc: 'Summary', core: true },
     ],
   }))
 

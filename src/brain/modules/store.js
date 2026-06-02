@@ -43,16 +43,16 @@ class VectorCollection extends Collection {
 
 let _config = null
 let _entries = null
-let SKIP_FIELDS = null
+let SKIP_ATTRIBUTES = null
 
-const ready = new Signal({ late: true })
+const ready = new Signal({ late: true, memorable: true })
 
 function init (config) {
   _config = config
   _entries = new VectorCollection(Entry, {
     vectorDimensions: config.const.embeddings.dimensions,
   })
-  SKIP_FIELDS = new Set([
+  SKIP_ATTRIBUTES = new Set([
     'name', 'source_file', 'content_hash',
     ...config.const.skipLinkScan || [],
   ])
@@ -61,7 +61,7 @@ function init (config) {
 function collectSearchableText (entry) {
   let text = ''
   for (const [ key, value ] of Object.entries(entry)) {
-    if (SKIP_FIELDS.has(key)) continue
+    if (SKIP_ATTRIBUTES.has(key)) continue
     if (typeof value === 'string') text += '\n' + value
   }
   return text

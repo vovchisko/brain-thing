@@ -58,10 +58,10 @@ function toggleExpand (key) {
   else expanded.value.add(key)
 }
 
-function addProjectRule (proj) { proj.rules.push({ tag: '', field: '', value: '', folder: '' }) }
+function addProjectRule (proj) { proj.rules.push({ tag: '', attribute: '', value: '', folder: '' }) }
 function removeProjectRule (proj, i) { proj.rules.splice(i, 1) }
 
-function addRule () { organize.value.rules.push({ tag: '', field: '', value: '', folder: '' }) }
+function addRule () { organize.value.rules.push({ tag: '', attribute: '', value: '', folder: '' }) }
 function removeRule (i) { organize.value.rules.splice(i, 1) }
 </script>
 
@@ -113,7 +113,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
           <div class="org_proj_section">
             <div v-for="(rule, ri) in proj.rules" :key="ri" class="org_rule">
               <input v-model="rule.tag" class="g-input" placeholder="tag" spellcheck="false" />
-              <input v-model="rule.field" class="g-input" placeholder="field" spellcheck="false" />
+              <input v-model="rule.attribute" class="g-input" placeholder="attribute" spellcheck="false" />
               <span class="org_eq">=</span>
               <input v-model="rule.value" class="g-input" placeholder="value" spellcheck="false" />
               <span class="org_arrow">&rarr;</span>
@@ -134,7 +134,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
       </div>
       <div v-for="(rule, i) in organize.rules" :key="i" class="org_rule">
         <input v-model="rule.tag" class="g-input" placeholder="tag" spellcheck="false" />
-        <input v-model="rule.field" class="g-input" placeholder="field" spellcheck="false" />
+        <input v-model="rule.attribute" class="g-input" placeholder="attribute" spellcheck="false" />
         <span class="org_eq">=</span>
         <input v-model="rule.value" class="g-input" placeholder="value" spellcheck="false" />
         <span class="org_arrow">&rarr;</span>
@@ -146,7 +146,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
     <div class="org_footer">
       <div>
         <div v-if="saved" class="g-saved">Saved</div>
-        <div class="g-hint">Each project maps to a base folder. Rules sort entries into subfolders by tag or field.</div>
+        <div class="g-hint">Each project maps to a base folder. Rules sort entries into subfolders by tag or attribute.</div>
       </div>
       <div class="org_footer_btns">
         <button class="g-btn" :disabled="!dirty" @click="cancel">Cancel</button>
@@ -168,7 +168,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
 
     &_btn {
       padding: 4px 14px;
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       font-weight: 600;
       min-width: 48px;
 
@@ -188,7 +188,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
   }
 
   &_lbl {
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     color: var(--text-dim);
     white-space: nowrap;
   }
@@ -204,7 +204,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
     }
 
     &_title {
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -228,7 +228,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
     }
 
     &_chevron {
-      font-size: 10px;
+      font-size: var(--font-label);
       color: var(--text-dim);
       width: 14px;
       flex-shrink: 0;
@@ -241,7 +241,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
 
     &_info {
       flex: 1;
-      font-size: var(--font-xs);
+      font-size: var(--font-label);
       color: var(--text-dim);
     }
 
@@ -276,7 +276,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
 
   &_arrow, &_eq {
     color: var(--text-dim);
-    font-size: var(--font-xs);
+    font-size: var(--font-label);
     flex-shrink: 0;
   }
 
@@ -284,7 +284,7 @@ function removeRule (i) { organize.value.rules.splice(i, 1) }
     all: unset;
     cursor: pointer;
     color: var(--text-dim);
-    font-size: var(--font-md);
+    font-size: var(--font-heading);
     width: 20px;
     text-align: center;
     flex-shrink: 0;

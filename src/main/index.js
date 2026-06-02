@@ -6,10 +6,13 @@ import { cfg }                                               from '../brain/conf
 import { server }                                            from '../brain/server.js'
 import { registration }                                      from '../brain/modules/register.js'
 import { tts }                                               from '../brain/modules/tts.js'
+import { dataset }                                           from '../brain/dataset/index.js'
+import { SPECS }                                             from '../brain/specs.js'
 import { onBrainEvent }                                      from '../brain/lib/bus.js'
 import { createTray, checkForUpdate }                        from './tray'
 import { IPC }                                               from '../shared/ipc'
 import { LOG_BUFFER_SIZE }                                   from '../shared/constants'
+import { STATUS }                                            from '../shared/status'
 import icon                                                  from '../../resources/icon.png?asset'
 
 if (process.platform === 'win32') process.env.LANG = 'en_US.UTF-8'
@@ -41,10 +44,10 @@ onBrainEvent((event) => {
 
 // --- Stats bridge ---
 const statsCache = {
-  status: { phase: 'idle' },
+  status: { phase: STATUS.IDLE },
   entries: 0,
   issues: { summary: 0, links: 0 },
-  fields: {},
+  attributes: {},
   projects: { projects: {}, noProject: 0 },
 }
 
@@ -58,7 +61,7 @@ function pushStat (channel, key, value) {
 server.onStatus    = (s) => pushStat(IPC.STAT_STATUS, 'status', s)
 server.onEntries   = (n) => pushStat(IPC.STAT_ENTRIES, 'entries', n)
 server.onIssues    = (d) => pushStat(IPC.STAT_ISSUES, 'issues', d)
-server.onFields    = (d) => pushStat(IPC.STAT_FIELDS, 'fields', d)
+server.onAttributes = (d) => pushStat(IPC.STAT_ATTRIBUTES, 'attributes', d)
 server.onProjects  = (d) => pushStat(IPC.STAT_PROJECTS, 'projects', d)
 server.onLiveCount = (n) => pushStat(IPC.STAT_ENTRIES, 'entries', n)
 server.onConfigChanged = (scope) => {
@@ -67,6 +70,12 @@ server.onConfigChanged = (scope) => {
     if (!win.isDestroyed()) win.webContents.send(channel)
   }
 }
+
+dataset.on((event) => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC.DATASET_EVENT, event)
+  }
+})
 
 // --- Init ---
 const dataDir = app.getPath('userData')
@@ -98,7 +107,7 @@ function createWindow () {
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(import.meta.dirname, '../preload/index.mjs'),
       sandbox: false,
     },
   })
@@ -120,7 +129,7 @@ function createWindow () {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(import.meta.dirname, '../renderer/index.html'))
   }
 }
 
@@ -185,6 +194,17 @@ app.whenReady().then(() => {
   // TTS maintenance
   ipcMain.handle(IPC.TTS_FLUSH_CHUNKS, () => tts.flushChunks())
   ipcMain.handle(IPC.TTS_RERUN_JOBS, () => tts.rerunJobs())
+
+  // Tool catalog — static metadata for the Tools settings page
+  ipcMain.handle(IPC.TOOLS_LIST, () => SPECS.map(s => ({ name: s.name, access: s.access, group: s.group })))
+
+  // Dataset RPC dispatcher — single channel for all collection/schema calls
+  ipcMain.handle(IPC.DATASET_CALL, async (_e, name, payload) => {
+    try { return { ok: true, data: await dataset.call(name, payload) } }
+    catch (err) {
+      return { ok: false, error: { code: err.code || 'UNEXPECTED_ERROR', text: err.text || err.message || '' } }
+    }
+  })
 
   ipcMain.handle(IPC.PICK_FOLDER, async () => {
     const win = mainWindow || BrowserWindow.getFocusedWindow()
