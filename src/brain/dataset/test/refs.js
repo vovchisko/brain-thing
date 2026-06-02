@@ -233,6 +233,57 @@ section('refs: collection delete is blocked while referenced, force clears refer
   await cleanup()
 }
 
+// -- schema-write paths must honour referential integrity too -----------------
+// (add_field default-fill + update_field re-coerce wrote ref values straight past
+//  validateRefs, fabricating dangling references the row API swears are impossible.)
+
+section('refs: schema writes cannot fabricate dangling references')
+{
+  // Vector 1 — add_field with a reference default that is not a real id: rejected, like a row write.
+  {
+    const { db, cleanup } = await seeded()
+    db.collection('books').create({ title: '1984' })
+    await throws('add_field ref def of a non-existent id rejected',
+        () => db.schemas.addField('books', { key: 'lead', type: TYPES.REFERENCE, rules: { referenceTo: 'authors' }, def: 'NOPE-1' }),
+        ERR.BAD_REQUEST)
+    ok('the field was not added', !db.schemas.get('books').schema.props.some(p => p.key === 'lead'))
+    await cleanup()
+  }
+
+  // add_field with a VALID reference default is accepted and fills existing rows with the real id.
+  {
+    const { db, cleanup, ids } = await seeded()
+    db.collection('books').create({ title: '1984' })
+    await db.schemas.addField('books', { key: 'lead', type: TYPES.REFERENCE, rules: { referenceTo: 'authors' }, def: ids.orwell })
+    eq('valid ref default applied to existing rows', db.collection('books').list({}).data[0].lead, ids.orwell)
+    await cleanup()
+  }
+
+  // Vector 2 — retype a string column holding garbage to a reference: garbage is cleared, not kept.
+  {
+    const { db, cleanup } = await seeded()
+    const books = db.collection('books')
+    await db.schemas.addField('books', { key: 'note', type: TYPES.STRING, format: FORMATS.TEXT, def: '' })
+    const row = books.create({ title: '1984', note: 'GARBAGE-42' }).item
+    const res = await db.schemas.updateField('books', 'note', { type: TYPES.REFERENCE, rules: { referenceTo: 'authors' }, def: null })
+    eq('field is now a reference', db.schemas.get('books').schema.props.find(p => p.key === 'note').type, TYPES.REFERENCE)
+    eq('dangling string value cleared to null', books.get(row.id).item.note, null)
+    ok('the clearing was surfaced, not silent', Array.isArray(res.notes) && res.notes.some(n => /real row|cleared/i.test(n)))
+    await cleanup()
+  }
+
+  // Subset retype — invalid ids are dropped, valid ids survive.
+  {
+    const { db, cleanup, ids } = await seeded()
+    const books = db.collection('books')
+    await db.schemas.addField('books', { key: 'crew', type: TYPES.ARRAY, def: [] })
+    const row = books.create({ title: '1984', crew: [ ids.orwell, 'GHOST-9' ] }).item
+    await db.schemas.updateField('books', 'crew', { type: TYPES.SUBSET, rules: { referenceTo: 'authors' }, def: [] })
+    eq('valid id kept, ghost dropped', books.get(row.id).item.crew, [ ids.orwell ])
+    await cleanup()
+  }
+}
+
 // -- pure helpers -------------------------------------------------------------
 
 section('filters singleton: displayLabel / displayPropKey')

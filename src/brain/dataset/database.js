@@ -443,10 +443,47 @@ function validateRefs (schema, values, dataset, onlyKeys = null, self = null) {
   }
 }
 
-function migrateItems (collection, newSchema, renames = []) {
+/**
+ * A reference/subset field's default must itself point to a real row — the same
+ * strictness the row API applies, so add_field/update_field can't seed a dangling
+ * default into every row. Reuses validateRefs for identical errors.
+ */
+function assertRefDef (prop, dataset) {
+  if (prop.type !== TYPES.REFERENCE && prop.type !== TYPES.SUBSET) return
+  if (prop.def === undefined || prop.def === null || prop.def === '') return
+  const value = prop.type === TYPES.SUBSET ? (Array.isArray(prop.def) ? prop.def : [ prop.def ]) : prop.def
+  validateRefs({ props: [ prop ] }, { [ prop.key ]: value }, dataset)
+}
+
+/**
+ * Drop reference/subset ids that don't point to a live row (or hold the row's own
+ * id). Used by migration: pre-existing values reach a newly ref-typed field
+ * without passing validateRefs, so clear them rather than reject — you can't
+ * refuse data that already exists. Returns true if it changed the value.
+ */
+function clearDanglingRefs (item, prop, collectionName, dataset) {
+  const ref = prop.rules?.referenceTo
+  const valid = (id) => id != null && !!ref && dataset.has(ref)
+      && dataset.collection(ref)._map.has(id)
+      && !(ref === collectionName && id === item.id)
+  if (prop.type === TYPES.REFERENCE) {
+    const v = item[prop.key]
+    if (v != null && !valid(v)) { item[prop.key] = null; return true }
+    return false
+  }
+  if (prop.type === TYPES.SUBSET) {
+    const v = item[prop.key]
+    if (!Array.isArray(v)) return false
+    const kept = v.filter(valid)
+    if (kept.length !== v.length) { item[prop.key] = kept; return true }
+  }
+  return false
+}
+
+function migrateItems (collection, newSchema, renames = [], dataset = null) {
   const newKeys = new Set(newSchema.props.map(p => p.key))
 
-  let removed = 0, added = 0, coerced = 0, reset = 0, renamed = 0
+  let removed = 0, added = 0, coerced = 0, reset = 0, renamed = 0, cleared = 0
 
   // rename pass: carry old values to their new key before drop/add/coerce
   for (const { from, to } of renames) {
@@ -470,23 +507,28 @@ function migrateItems (collection, newSchema, renames = []) {
       if (cur === undefined) {
         item[prop.key] = defaultFor(prop)
         added++
-        continue
-      }
-      if (cur === null) continue
-      try {
-        const next = coerce(prop, cur)
-        if (next !== cur) {
-          item[prop.key] = next
-          coerced++
+      } else if (cur !== null) {
+        try {
+          const next = coerce(prop, cur)
+          if (next !== cur) {
+            item[prop.key] = next
+            coerced++
+          }
+        } catch {
+          item[prop.key] = defaultFor(prop)
+          reset++
         }
-      } catch {
-        item[prop.key] = defaultFor(prop)
-        reset++
+      }
+      // Referential integrity on the schema-write path: a value that reached a
+      // reference/subset field this way never saw validateRefs — drop ids that
+      // don't point to a real row (the add_field-default / retype hole).
+      if (dataset && (prop.type === TYPES.REFERENCE || prop.type === TYPES.SUBSET)) {
+        if (clearDanglingRefs(item, prop, collection.name, dataset)) cleared++
       }
     }
   }
 
-  return { removed, added, coerced, reset, renamed }
+  return { removed, added, coerced, reset, renamed, cleared }
 }
 
 const FILTER_OPS = new Set([ 'eq', 'in', 'lt', 'gt', 'contains', 'starts', 'has', 'hasAny' ])
@@ -1013,9 +1055,9 @@ class Schemas {
     schema = sanitizeSchema(name, schema)
     const entry = this._req(name)
 
-    const report = migrateItems(entry.collection, schema, renames)
+    const report = migrateItems(entry.collection, schema, renames, this._db)
 
-    if (report.removed || report.added || report.coerced || report.reset || report.renamed) {
+    if (report.removed || report.added || report.coerced || report.reset || report.renamed || report.cleared) {
       entry.collection._changed = new Date().toISOString()
       if (entry.collection._autoSaveTimeout) {
         clearTimeout(entry.collection._autoSaveTimeout)
@@ -1030,8 +1072,8 @@ class Schemas {
 
     this._db._sigs.schemaUpdated.emit({ name, schema })
     log(`Migrated "${ name }" (${ entry.collection._array.length } item(s)): ` +
-        `dropped ${ report.removed }, added ${ report.added }, coerced ${ report.coerced }, reset ${ report.reset }, renamed ${ report.renamed }`)
-    return { name, schema }
+        `dropped ${ report.removed }, added ${ report.added }, coerced ${ report.coerced }, reset ${ report.reset }, renamed ${ report.renamed }, cleared ${ report.cleared }`)
+    return { name, schema, report }
   }
 
   _req (name) {
@@ -1152,6 +1194,7 @@ class Schemas {
       throw new ErrorGeneric(ERR.CONFLICT, `Field "${ field.key }" already exists in "${ name }".`)
     }
     const { field: norm, note } = normalizeFieldFormat({ ...field })
+    assertRefDef(norm, this._db)   // a reference/subset default must point to a real row
     const props = [ ...entry.schema.props.map(p => ({ ...p })), norm ]
     return this._applyFieldChange(name, props, [], note ? [ note ] : [])
   }
@@ -1179,6 +1222,7 @@ class Schemas {
     const i = props.findIndex(p => p.key === key)
     const { field: norm, note } = normalizeFieldFormat(props[i])
     props[i] = norm
+    assertRefDef(norm, this._db)   // a reference/subset default must point to a real row
     return this._applyFieldChange(name, props, [], note ? [ note ] : [])
   }
 
@@ -1207,8 +1251,11 @@ class Schemas {
     if (displayProp) finalSchema.displayProp = displayProp
     else delete finalSchema.displayProp
 
-    await this._migrateAndPersist(name, finalSchema, renames)
-    return { ...this.get(name), notes }
+    const { report } = await this._migrateAndPersist(name, finalSchema, renames)
+    const allNotes = report?.cleared
+      ? [ ...notes, `Cleared ${ report.cleared } value(s) that did not point to a real row.` ]
+      : notes
+    return { ...this.get(name), notes: allNotes }
   }
 
   async _persistSchema (name, schema) {
