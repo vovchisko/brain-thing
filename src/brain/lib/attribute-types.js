@@ -101,8 +101,9 @@ class AttributeTypeList extends AttributeType {
   type = ATTRIBUTE_TYPE.LIST
 
   parse (raw) {
-    if (Array.isArray(raw)) return raw
-    return raw != null ? [ raw ] : []
+    const arr = Array.isArray(raw) ? raw : (raw != null ? [ raw ] : [])
+    return arr.filter(v => v != null)
+        .map(v => v instanceof Date ? v.toISOString().slice(0, 10) : String(v))
   }
 
   match (entryValue, op, searchValue) {

@@ -4,8 +4,9 @@ import { logs, state }                   from '../state.js'
 
 const el = ref(null)
 
+// Errors punch through the verbose filter — a broken vault file must always be visible
 const filtered = computed(() =>
-  state.verboseConsole ? logs.value : logs.value.filter(e => !e.system),
+  state.verboseConsole ? logs.value : logs.value.filter(e => !e.system || e.state === 'error'),
 )
 
 function scrollDown () {
@@ -81,6 +82,8 @@ $tts-badge: #1a5a5a;
 
     &._system .log-panel_entry_module { background: $system-badge; color: $system-text; }
     &._system .log-panel_entry_text { color: $system-text; }
+    &._system._warn .log-panel_entry_text  { color: var(--warning); }
+    &._system._error .log-panel_entry_text { color: var(--negative); }
 
     &._brain .log-panel_entry_module { background: $brain-badge; }
     &._tts .log-panel_entry_module { background: $tts-badge; }

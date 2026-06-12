@@ -6,6 +6,7 @@ import { store }                                                    from './stor
 import { embeddings }                                               from './embeddings.js'
 import { createBus }                                                from '../lib/bus.js'
 import { formatDate, orderKeys, shouldIgnore }                     from '../lib/utils.js'
+import { ATTRIBUTE_TYPE }                                           from '../../shared/attribute-types.js'
 import { needsMove, resolveFolder }                                 from './organize.js'
 
 const bus = createBus('obsidian', { system: true })
@@ -88,6 +89,15 @@ function serializeFrontmatter (frontmatter, content = '') {
   return matter.stringify(content, ordered)
 }
 
+// TODO: Find better place for this slop
+function warnNonStringLists (frontmatter, filePath) {
+  for (const [ name, type ] of Object.entries(_config.vault.attributes)) {
+    if (type.type !== ATTRIBUTE_TYPE.LIST || !(name in frontmatter)) continue
+    const bad = [].concat(frontmatter[name] ?? []).filter(v => v != null && typeof v !== 'string')
+    if (bad.length) bus.error('import', `${ filePath } — non-string ${ name }: ${ JSON.stringify(bad) } (coerced to strings)`)
+  }
+}
+
 function validateFrontmatter (frontmatter, filePath) {
   if (!frontmatter || typeof frontmatter !== 'object') {
     return `Invalid frontmatter: ${ filePath }`
@@ -113,20 +123,31 @@ async function generateVector (entry) {
 }
 
 async function importFile (filePath) {
+  try {
+    await _importFile(filePath)
+  } catch (err) {
+    err.message = `${ filePath } — ${ err.message }`
+    throw err
+  }
+}
+
+async function _importFile (filePath) {
   const text = await fs.readFile(filePath, 'utf-8')
   const parsed = parseFrontmatter(text)
 
   if (!parsed) {
-    bus.warn('import', `Invalid YAML in ${ path.basename(filePath) }`)
+    bus.error('import', `Invalid YAML in ${ filePath }`)
     return
   }
 
   const { frontmatter, content } = parsed
   const validationError = validateFrontmatter(frontmatter, filePath)
   if (validationError) {
-    bus.warn('import', validationError)
+    bus.error('import', validationError)
     return
   }
+
+  warnNonStringLists(frontmatter, filePath)
 
   const fileHash = computeHash(text)
   const fileName = path.basename(filePath, '.md')
@@ -183,7 +204,7 @@ async function scanDirectory (dir) {
       try {
         await importFile(fullPath)
       } catch (err) {
-        bus.error(`Failed: ${ fullPath } — ${ err.message }`)
+        bus.error('import', `Failed: ${ err.message }`)
       }
     }
   }
@@ -322,21 +343,25 @@ async function stampMissingDates () {
   for (const entry of store.entries) {
     if (!entry.source_file) continue
 
-    const raw = await fs.readFile(entry.source_file, 'utf-8')
-    const parsed = parseFrontmatter(raw)
-    if (!parsed) continue
+    try {
+      const raw = await fs.readFile(entry.source_file, 'utf-8')
+      const parsed = parseFrontmatter(raw)
+      if (!parsed) continue
 
-    const { frontmatter, content } = parsed
-    const needsCreated = !frontmatter.created
-    const needsModified = !frontmatter.modified
-    if (!needsCreated && !needsModified) continue
+      const { frontmatter, content } = parsed
+      const needsCreated = !frontmatter.created
+      const needsModified = !frontmatter.modified
+      if (!needsCreated && !needsModified) continue
 
-    if (needsCreated) frontmatter.created = entry.created
-    if (needsModified) frontmatter.modified = entry.modified
+      if (needsCreated) frontmatter.created = entry.created
+      if (needsModified) frontmatter.modified = entry.modified
 
-    const updated = serializeFrontmatter(frontmatter, content)
-    await fs.writeFile(entry.source_file, updated, 'utf-8')
-    count++
+      const updated = serializeFrontmatter(frontmatter, content)
+      await fs.writeFile(entry.source_file, updated, 'utf-8')
+      count++
+    } catch (err) {
+      bus.error('dates', `Failed: ${ entry.source_file } — ${ err.message }`)
+    }
   }
 
   if (count > 0) bus.info('dates', `Stamped dates on ${ count } files`)
@@ -394,7 +419,11 @@ async function run () {
   await stampMissingDates()
 
   for (const entry of [ ...store.entries ]) {
-    await organizeFile(entry)
+    try {
+      await organizeFile(entry)
+    } catch (err) {
+      bus.error('organize', `Failed: ${ entry.source_file || entry.name } — ${ err.message }`)
+    }
   }
 
   bus.info('scan', `Import complete: ${ store.entries.size } entries in ${ ((Date.now() - t0) / 1000).toFixed(1) }s`)
