@@ -17,6 +17,13 @@ import { cfg }        from '../config.js'
 
 const BANNED_ATTRS = new Set(['name', 'content', 'created', 'modified', 'source_file', 'content_hash'])
 
+// Tool-input rule only — watcher ingestion stays tolerant of whatever YAML holds.
+const TAG_RE = /^[a-z0-9_-]+(\/[a-z0-9_-]+)*$/
+
+function invalidTags (tags) {
+  return tags.filter(t => typeof t !== 'string' || !TAG_RE.test(t))
+}
+
 /**
  * Validate an attributes map against the configured attribute types.
  * Returns { props, errors } — props is the cleaned subset that passed validation.
@@ -40,6 +47,14 @@ export function validateAttributes (attrs, extraBanned = null) {
     if (key === 'tags') {
       if (!Array.isArray(value) || value.length === 0) {
         errors.push({ index: null, type: 'attribute', reason: '"tags" must be a non-empty array' })
+        continue
+      }
+      const bad = invalidTags(value)
+      if (bad.length > 0) {
+        errors.push({
+          index: null, type: 'attribute',
+          reason: `invalid tags: ${ bad.map(t => `"${ t }"`).join(', ') } — a tag is lowercase [a-z0-9_-] segments separated by "/", no spaces (e.g. "eow/novel/notes")`,
+        })
         continue
       }
     } else if (types[key]?.type === 'list') {
