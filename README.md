@@ -1,169 +1,74 @@
 # Brain Thing
 
-A local knowledge base that connects your markdown notes to AI assistants via [MCP](https://modelcontextprotocol.io/).
+Personal knowledge base with an MCP interface. Your Obsidian-compatible markdown vault, exposed to AI assistants over [MCP](https://modelcontextprotocol.io/) — local embeddings, live two-way sync, nothing uploaded. Electron app wrapping a self-contained Node server.
 
-You write in Obsidian (or any markdown editor). Brain Thing indexes your vault, builds semantic embeddings, and gives Claude direct access to search, read, create, and organise your entries — without uploading anything to the cloud.
+> Back up your vault before pointing the app at it. Pre-builds are Windows-only and unsigned ("Unknown Publisher"); Mac/Linux build from source. Bugs → https://github.com/vovchisko/brain-thing/issues
 
-Edit a note in Obsidian — Claude sees it in seconds. Create an entry through Claude — it appears in Obsidian immediately. Same `.md` files, no sync layer.
+## Tools
 
-> 🖐️ Hold on!
->
-> This tool emerged as something I used for myself, and wasn't tested on Mac/Linux, so in case of any issues, don't be shy - report it https://github.com/vovchisko/brain-thing/issues
-> And indeed make a backup of your Obsidian Vault, if you use it.
+23 MCP tools. All enabled tools are exposed from the start (toggle any in **Settings → Tools**); `look_around` is just the recommended first call for a vault overview.
 
-## Features
+### Documents
 
-🔍 **Semantic search** — "find my notes about sourdough fermentation" works even if you never used those exact words. Brain Thing runs a local embedding model and matches by meaning.
-
-📊 **Structured queries** — search by dates, numbers, tags, and custom fields with operators. One tool call, not a manual scan of your vault.
-
-🏷️ **Tag hierarchy** — tags like `work/task` and `cooking/bread/sourdough` support prefix matching. Search `work` and get everything under it.
-
-📁 **Projects** — group entries with a simple `project` field. Every tool supports project filtering. Say "create a note for Novel" and the AI sets the field automatically.
-
-🔗 **Backlinks** — when Claude reads an entry, it sees which other entries reference it. Relationship graph without reading the whole vault.
-
-📂 **Auto-organise** — map projects and tags to folders. The AI creates an entry → Brain Thing puts the file where it belongs. Obsidian sees the same folder structure.
-
-🩺 **Diagnostics** — broken links, missing summaries, health checks — all as a tool call.
-
-## Install
-
-1. Download the latest release from [GitHub Releases](https://github.com/vovchisko/brain-thing/releases) — pre-built only for **Windows** (`-setup.exe`).
-   - **Mac / Linux users:** build from source — see [Development](#development) below. Pre-built Mac/Linux releases dropped because GitHub's free macOS Intel runner was deprecated and Apple Silicon-only builds excluded too many users to be worth maintaining the CI complexity.
-
-2. Run the installer. The app isn't signed yet, so Windows will show **"Unknown Publisher"** — click **More info → Run anyway**.
-
-3. On first launch, point Brain Thing to your vault folder.
-4. It downloads the embedding model (~1 GB) and indexes everything.
-
-### Connect to Claude
-
-Brain Thing auto-registers its MCP server in Claude Desktop and Claude Code on startup. Toggle in **Settings → General → MCP**, then restart Claude.
-
-Once connected, the AI starts with a single `look_around` call that loads the full toolset and shows your vault overview.
-
-## For Obsidian Users
-
-Brain Thing is Obsidian-compatible by data format — standard markdown with YAML frontmatter and `[[wikilinks]]`.
-
-### What Brain Thing adds
-
-Brain Thing manages a few core fields in every entry:
-
-| Field | Required | What it does |
-|---|---|---|
-| `created` | yes | Set once on creation, never overwritten |
-| `modified` | yes | Updated on every write |
-| `tags` | yes | Hierarchical tags with prefix matching |
-| `summary` | auto | One-liner used for indexing; the AI usually sets it automatically |
-| `project` | no | Groups entries for filtering and organization |
-
-Your existing notes work as-is — Brain Thing reads whatever frontmatter is already there and won't rename or remove your fields.
-
-You can also define custom fields (string, number, date, list) in **Settings → Fields** so the AI can follow your Obsidian habits. It sees them, can set them on create/update, and structured search uses type-aware operators.
-
-### Where files go
-
-By default, new files are created in your vault root. To auto-sort them into folders:
-
-**Settings → Organise** lets you map projects to folders (`Novel` → `Novel/`, `Work` → `Work/Notes/`) and add rules per project — for example, entries tagged `novel/chapter` go to `Chapters/`, entries with `status: done` go to `Archive/`. There's also a fallback for entries without a project.
-
-This is purely file management. The AI works with entry names, not file paths.
-
-### Settings & sync
-
-Brain Thing stores vault-specific settings (fields, ignore rules, organize config, features, guideline) inside your vault at `.brain-thing/settings.json`. The vector cache also lives in `.brain-thing/vector-cache`.
-
-This means if you sync your vault across machines (Syncthing, Dropbox, etc.), your settings and embedding cache travel with it — same config everywhere, no re-indexing.
-
-Machine-specific settings (server port, window position, embedding model) stay in the app's local data folder.
-
-### How it syncs
-
-Brain Thing watches your vault folder for changes. Both directions are live:
-
-- Create/Edit in Obsidian → AI sees the update right away
-- Create/Edit through Claude → file appears in Obsidian immediately
-- Rename updates all `[[wikilinks]]` across the vault, same as Obsidian does
-- Settings changed on another machine → detected and applied automatically
-
-No import/export, no conflict resolution needed. You can have both open side by side.
-
-### Why not just give Claude filesystem access?
-
-Claude can read files, but a folder of markdown is just text. It would need dozens of reads and custom prompting to approximate what Brain Thing does in one tool call. Backlinks, tags, projects, and structured search aren't possible with a filesystem adapter.
-
-### Why not an Obsidian plugin?
-
-Brain Thing runs as a standalone desktop app with its own HTTP server. The embedding model (~1 GB) runs in a separate process — in a plugin, this would freeze the editor. Claude needs a stdio process to connect to, which a plugin can't provide.
-
-## Under the Hood
-
-### MCP Tools (16)
-
-**Read & Search**
-
-| Tool | Purpose |
+| Tool | What it does |
 |---|---|
-| `look_around` | Vault overview: projects, tags, entry counts, guidelines |
-| `what_is` | Semantic search — returns a ranked list of candidates |
-| `grep` | Literal text search across titles, content, summaries |
-| `search` | Structured queries with operators ($eq, $gt, $lt, $any, $all) |
-| `get` | Full entry by name, with backlinks and broken link warnings |
-| `long_read` | Bulk read or estimate size of multiple entries in one call |
-| `tags_list` | Browse tag hierarchy, drill into prefixes |
-| `fields` | Discover available fields and their types |
-| `diagnostic` | Broken links, missing summaries, health checks |
+| `look_around` | Knowledge-base overview: projects, tags, counts, guideline. |
+| `what_is` | Semantic search — ranks entries by meaning, not keywords. |
+| `grep` | Literal text search across titles, content, and summaries. |
+| `search` | Filter entries by attribute value (`$eq`/`$gt`/`$lt`/`$any`/`$all`). |
+| `get` | Read one entry (full / body-only / size estimate) with backlinks. |
+| `long_read` | Read or size-estimate several entries in one call. |
+| `tags_list` | List tags, or drill into subtags under a prefix. |
+| `attributes` | List the attributes in use across entries. |
+| `diagnostic` | Report entries with issues — broken links, missing summaries. |
+| `create` | Create a new entry. |
+| `edit` | Atomic body ops (replace/remove/insert/rewrite) and/or attribute updates. |
+| `delete` | Delete an entry (incoming `[[wikilinks]]` go broken). |
+| `rename` | Rename an entry; updates every `[[wikilink]]` across the vault. |
+| `project_config` | List/create/update/remove projects; creating one adds its home entry. |
 
-**Write & Organize**
+### Database (structured collections)
 
-| Tool | Purpose |
+| Tool | What it does |
 |---|---|
-| `create` | New entry with content, tags, project, and custom fields |
-| `update` | Change frontmatter fields |
-| `replace` | Find/replace in content (single or batch, atomic) |
-| `insert` | Add text at start/end or before/after a marker |
-| `delete` | Remove entry and file |
-| `rename` | Rename entry; updates all wikilinks across the vault |
-| `project_config` | List, create, update, remove project configs |
+| `db_schema` | Read collection structures and field types. |
+| `db_schema_edit` | One DDL op — create/alter/drop a collection or field. |
+| `db_query` | Query rows with filters, sort, and pagination. |
+| `db_get` | Read one row by id. |
+| `db_create` | Insert a row. |
+| `db_create_many` | Insert several rows, all-or-nothing. |
+| `db_update` | Patch fields of a row by id. |
+| `db_delete` | Delete a row by id. |
+| `db_delete_many` | Delete several rows by id, all-or-nothing. |
 
-### Data Format
+## Data format
 
-Standard Obsidian-compatible markdown with YAML frontmatter:
+Obsidian-compatible markdown with YAML frontmatter and `[[wikilinks]]`:
 
 ```markdown
 ---
 project: MyProject
 tags:
   - work/task
-  - urgent
 status: active
-priority: 3
 due: 2026-05-01
 summary: Implement the new auth flow
 created: 2026-03-15
 modified: 2026-04-01
 ---
 
-Task details here. Supports `[[wikilinks]]` to other entries.
+Task details. Supports [[wikilinks]] to other entries.
 ```
 
-## Roadmap, maybe
+Managed fields: `created` (set once), `modified` (every write), `tags` (hierarchical, prefix-matched), `summary` (auto), `project` (optional grouping). Custom fields (string/number/date/list) are defined in **Settings → Fields**. Vault settings and the vector cache live in `.brain-thing/` inside the vault, so they travel with a synced vault.
 
-- TTS narration — pipe matching entries to a text-to-speech engine. There's a working local XTTS v2 setup behind it already, but the server side isn't public yet. Future direction: either ship the local setup as a companion install, or wire it up to a hosted TTS service so people can actually use it.
-
-## Development
+## Develop & run
 
 ```bash
 npm i
 npm run dev
 npm test
+npm run build:win   # or build:mac / build:linux
 ```
 
-### Build for yourself
-
-```bash
-npm run build:win
-npm run build:mac
-```
+Brain Thing auto-registers its MCP server in Claude Desktop and Claude Code on startup — toggle in **Settings → General → MCP**, then restart Claude.
