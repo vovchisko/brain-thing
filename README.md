@@ -1,5 +1,11 @@
 # Brain Thing
 
+> ✋ HOLD ON!
+>
+> If you want new features or fixes, just steal it as-is and do your things.
+>
+> I might abandon it soon and publish another "bigger and better" self-hosted one.
+
 Personal knowledge base with an MCP interface. Your Obsidian-compatible markdown vault, exposed to AI assistants over [MCP](https://modelcontextprotocol.io/) — local embeddings, live two-way sync, nothing uploaded. Electron app wrapping a self-contained Node server.
 
 > Back up your vault before pointing the app at it. Pre-builds are Windows-only and unsigned ("Unknown Publisher"); Mac/Linux build from source. Bugs → https://github.com/vovchisko/brain-thing/issues
